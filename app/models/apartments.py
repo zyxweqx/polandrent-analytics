@@ -18,7 +18,7 @@ class Apartment(Base):
     district: Mapped[str | None] = mapped_column(String(100))
 
     price: Mapped[float] = mapped_column(Float)
-    additional_rent: Mapped[str | None] = mapped_column(Float)
+    additional_rent: Mapped[float | None] = mapped_column(Float)
     sq_meters: Mapped[float | None] = mapped_column(Float)
     rooms: Mapped[int | None] = mapped_column(Integer)
     floor: Mapped[int | None] = mapped_column(Integer)
