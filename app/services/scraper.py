@@ -1,14 +1,15 @@
 import asyncio
-
 from playwright.async_api import async_playwright
 
+from app.core.database import async_session_maker
+from app.models.apartments import Apartment
 
 async def run_scraper():
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=False)
         context = await browser.new_context(
             viewport={'width': 1280, 'height': 800},
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (HTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
             permissions=[]
         )
         page = await context.new_page()
@@ -40,32 +41,42 @@ async def run_scraper():
         await page.locator('[data-cy="l-card"]').first.wait_for(state="visible")
 
         all_cards = await page.locator('[data-cy="l-card"]').all()
-
         print(f"Listings found on the page: {len(all_cards)}")
 
-        for i, card in enumerate(all_cards):
-            try:
-                title_text = await card.locator('[data-testid="ad-card-title"] h4').inner_text(timeout=1000)
+        async with async_session_maker() as session:
 
-                link_element = card.locator('a').first
-                raw_url = await link_element.get_attribute("href")
-                if raw_url.startswith("/d/"):
-                    url = "https://www.olx.pl" + raw_url
-                else:
-                    url = raw_url
+            for i, card in enumerate(all_cards):
 
-                raw_price = await card.locator('[data-testid="ad-price"]').first.inner_text(timeout=1000)
+                try:
+                    title_text = await card.locator('[data-testid="ad-card-title"] h4').inner_text(timeout=1000)
 
-                clean_price = raw_price.replace(" ", "").replace("zł", "").replace("donegocjacji", "")
-                final_price = float(clean_price)
+                    link_element = card.locator('a').first
+                    raw_url = await link_element.get_attribute("href")
 
-                print(f"Name: {title_text}, Price: {final_price}, URL: {url}")
+                    if raw_url.startswith("/d/"):
+                        url = "https://www.olx.pl" + raw_url
+                    else:
+                        url = raw_url
 
-            except Exception as e:
-                continue
+                    raw_price = await card.locator('[data-testid="ad-price"]').first.inner_text(timeout=1000)
+
+                    clean_price = raw_price.replace(" ", "").replace("zł", "").replace("donegocjacji", "").replace("\n",
+                                                                                                                   "").replace(
+                        ",", ".")
+                    final_price = float(clean_price)
+
+                    print(f"Name: {title_text}, Price: {final_price}, URL: {url}")
+
+                    new_apt = Apartment(url=url, title=title_text, price=final_price, city="Poznan")
+                    session.add(new_apt)
+
+                except Exception:
+                    continue
+
+            print("Saving data to the database...")
+            await session.commit()
 
         await browser.close()
-
 
 if __name__ == "__main__":
     asyncio.run(run_scraper())
