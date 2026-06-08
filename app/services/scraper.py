@@ -18,7 +18,6 @@ async def run_scraper():
         await page.keyboard.press("Escape")
         await page.wait_for_timeout(1000)
 
-
         survey_frame = page.frame_locator("[id*='contextual-widget-host']")
         dismiss_btn = survey_frame.get_by_role("button", name="Dismiss study invitation")
 
@@ -47,14 +46,26 @@ async def run_scraper():
         for i, card in enumerate(all_cards):
             try:
                 title_text = await card.locator('[data-testid="ad-card-title"] h4').inner_text(timeout=1000)
-                price_text = await card.locator('[data-testid="ad-price"]').inner_text(timeout=1000)
-                price_text = price_text.replace("\n", "").strip()
-                print(f"Name: {title_text} | Price: {price_text}")
+
+                link_element = card.locator('a').first
+                raw_url = await link_element.get_attribute("href")
+                if raw_url.startswith("/d/"):
+                    url = "https://www.olx.pl" + raw_url
+                else:
+                    url = raw_url
+
+                raw_price = await card.locator('[data-testid="ad-price"]').first.inner_text(timeout=1000)
+
+                clean_price = raw_price.replace(" ", "").replace("zł", "").replace("donegocjacji", "")
+                final_price = float(clean_price)
+
+                print(f"Name: {title_text}, Price: {final_price}, URL: {url}")
+
             except Exception as e:
-                if i < 5:
-                    print(f"Card {i+1} skipped. Reason: {type(e).__name__}")
                 continue
+
         await browser.close()
+
 
 if __name__ == "__main__":
     asyncio.run(run_scraper())
