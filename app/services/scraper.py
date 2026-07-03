@@ -1,4 +1,6 @@
 import asyncio
+import re
+
 from playwright.async_api import async_playwright
 from app.core.database import async_session_maker
 from app.models.apartments import Apartment
@@ -92,6 +94,85 @@ async def save_to_db(apartments_data):
         print(f"Committing to the database... (Added: {added_count}, Skipped: {skipped_count})")
         await session.commit()
 
+
+async def get_apartment_details(page,url):
+    print(f"[Details] Entry inside: {url}")
+    try:
+        await page.goto(url,wait_until="domcontentloaded")
+        await page.wait_for_timeout(1500)
+
+        sq_meters = None
+        rooms = None
+        floor = None
+
+        if "olx.pl" in url:
+            try:
+                area_element = page.locator("p").filter(has_text="Powierzchnia:").first
+                await area_element.wait_for(state="visible", timeout=3000)
+
+                area_text = await area_element.inner_text()
+                print(f"Area: {area_text}")
+
+                match = re.search(r'\d+[.,]?\d*', area_text)
+                if match:
+                    clean_area = match.group().replace(",", ".")
+                    sq_meters = float(clean_area)
+            except Exception as e:
+                print(f"Not found meters on this page {e}")
+
+            try:
+                rooms_element = page.locator("p").filter(has_text="Liczba pokoi:").first
+                await rooms_element.wait_for(state="visible", timeout=3000)
+
+                rooms_text = await rooms_element.inner_text()
+                print(f"Room: {rooms_text}")
+
+                if "Kawalerka" in rooms_text or "kawalerka" in rooms_text:
+                    rooms = 1
+                else:
+                    match = re.search(r'\d+', rooms_text)
+                    if match:
+                        rooms = int(match.group())
+            except Exception:
+                print("Not found rooms on this page")
+
+            try:
+                floor_element = page.locator("p").filter(has_text="Poziom:").first
+                await floor_element.wait_for(state="visible", timeout=3000)
+                floor_text = await floor_element.inner_text()
+
+                floor_text = await floor_element.inner_text()
+                print(f"Floor: {floor_text}")
+
+                text_lower = floor_text.lower()
+                if "parter" in text_lower:
+                    floor = 0
+                elif "suteryna" in text_lower:
+                    floor = -1
+                elif "poddasze" in text_lower:
+                    floor = 99
+                else:
+                    match = re.search(r'\d+', floor_text)
+                    if match:
+                        floor = int(match.group())
+            except Exception:
+                print("Not found floors on this page")
+
+        elif "otodom.pl" in url:
+            # TODO write a logic for otodom.pl
+            print("URL otodom.pl")
+            pass
+
+        return {
+            "sq_meters": sq_meters,
+            "rooms": rooms,
+            "floor": floor
+        }
+    except Exception as e:
+        print(f"Error:{url}: {e}")
+        return {"sq_meters": None, "rooms": None, "floor": None}
+
+
 async def run_scraper():
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=False)
@@ -100,16 +181,25 @@ async def run_scraper():
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (HTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
             permissions=[]
         )
-        page = await context.new_page()
 
+        page = await context.new_page()
         await page.goto("https://www.olx.pl/nieruchomosci/mieszkania/wynajem/poznan/", wait_until="networkidle")
 
         await dismiss_popups(page)
-
         apartments_data = await parse_apartments_list(page)
 
-        await save_to_db(apartments_data)
+        print("\n Apartments data:")
+        second_page = await context.new_page()
 
+        for apt in apartments_data[:3]:
+            details = await get_apartment_details(second_page,apt["url"])
+
+            apt.update(details)
+            print("Ready")
+
+        await second_page.close()
+
+        await save_to_db(apartments_data)
         await browser.close()
 
 if __name__ == "__main__":
