@@ -37,6 +37,17 @@ async def dismiss_popups(page):
 
     await page.locator('[data-cy="l-card"]').first.wait_for(state="visible")
 
+
+async def dismiss_otodom_cookies(page):
+    try:
+        otodom_cookies_btn = page.get_by_role("button", name="Akceptuj wszystkie")
+
+        if await otodom_cookies_btn.is_visible(timeout=2000):
+            await otodom_cookies_btn.click()
+            await page.wait_for_timeout(500)
+    except Exception:
+        print("Cookie button not clickable or missing.")
+
 async def parse_apartments_list(page):
     print("Parsing apartments list...")
     await page.locator('[data-cy="l-card"]').first.wait_for(state="visible")
@@ -87,7 +98,10 @@ async def save_to_db(apartments_data):
                 url=apt_data["url"],
                 title=apt_data["title"],
                 price=apt_data["price"],
-                city=apt_data["city"]
+                city=apt_data["city"],
+                sq_meters=apt_data.get("sq_meters"),
+                rooms=apt_data.get("rooms"),
+                floor=apt_data.get("floor"),
             )
             session.add(new_apt)
             added_count += 1
@@ -109,41 +123,31 @@ async def get_apartment_details(page,url):
             try:
                 area_element = page.locator("p").filter(has_text="Powierzchnia:").first
                 await area_element.wait_for(state="visible", timeout=3000)
-
                 area_text = await area_element.inner_text()
-                print(f"Area: {area_text}")
-
                 match = re.search(r'\d+[.,]?\d*', area_text)
                 if match:
                     clean_area = match.group().replace(",", ".")
                     sq_meters = float(clean_area)
-            except Exception as e:
-                print(f"Not found meters on this page {e}")
+            except:
+                pass
 
             try:
                 rooms_element = page.locator("p").filter(has_text="Liczba pokoi:").first
                 await rooms_element.wait_for(state="visible", timeout=3000)
-
                 rooms_text = await rooms_element.inner_text()
-                print(f"Room: {rooms_text}")
-
                 if "Kawalerka" in rooms_text or "kawalerka" in rooms_text:
                     rooms = 1
                 else:
                     match = re.search(r'\d+', rooms_text)
                     if match:
                         rooms = int(match.group())
-            except Exception:
-                print("Not found rooms on this page")
+            except:
+                pass
 
             try:
                 floor_element = page.locator("p").filter(has_text="Poziom:").first
                 await floor_element.wait_for(state="visible", timeout=3000)
                 floor_text = await floor_element.inner_text()
-
-                floor_text = await floor_element.inner_text()
-                print(f"Floor: {floor_text}")
-
                 text_lower = floor_text.lower()
                 if "parter" in text_lower:
                     floor = 0
@@ -155,23 +159,64 @@ async def get_apartment_details(page,url):
                     match = re.search(r'\d+', floor_text)
                     if match:
                         floor = int(match.group())
-            except Exception:
-                print("Not found floors on this page")
+            except:
+                pass
 
         elif "otodom.pl" in url:
-            # TODO write a logic for otodom.pl
-            print("URL otodom.pl")
-            pass
+            await dismiss_otodom_cookies(page)
+
+            try:
+                area_element = page.locator('div:has-text("Powierzchnia") + div').first
+                await area_element.wait_for(state="visible", timeout=3000)
+                area_text = await area_element.inner_text()
+                match = re.search(r'\d+[.,]?\d*', area_text)
+                if match:
+                    sq_meters = float(match.group().replace(",", "."))
+            except:
+                pass
+
+            try:
+                rooms_element = page.locator('div:has-text("Liczba pokoi") + div').first
+                await rooms_element.wait_for(state="visible", timeout=3000)
+                rooms_text = await rooms_element.inner_text()
+                if "Kawalerka" in rooms_text or "kawalerka" in rooms_text:
+                    rooms = 1
+                else:
+                    match = re.search(r'\d+', rooms_text)
+                    if match:
+                        rooms = int(match.group())
+            except:
+                pass
+
+            try:
+                floor_element = page.locator('div:has-text("Piętro") + div').first
+                await floor_element.wait_for(state="visible", timeout=3000)
+                floor_text = await floor_element.inner_text()
+                text_lower = floor_text.lower()
+                if "parter" in text_lower:
+                    floor = 0
+                elif "suteryna" in text_lower:
+                    floor = -1
+                elif "poddasze" in text_lower:
+                    floor = 99
+                else:
+                    match = re.search(r'\d+', floor_text)
+                    if match:
+                        floor = int(match.group())
+            except:
+                pass
+
+        print(f" -> Area: {sq_meters} m2 | Rooms: {rooms} | Floor: {floor}")
 
         return {
-            "sq_meters": sq_meters,
-            "rooms": rooms,
-            "floor": floor
+           "sq_meters": float(sq_meters) if sq_meters is not None else None,
+           "rooms": int(rooms) if rooms is not None else None,
+           "floor": int(floor) if floor is not None else None
         }
+
     except Exception as e:
         print(f"Error:{url}: {e}")
         return {"sq_meters": None, "rooms": None, "floor": None}
-
 
 async def run_scraper():
     async with async_playwright() as p:
@@ -191,11 +236,10 @@ async def run_scraper():
         print("\n Apartments data:")
         second_page = await context.new_page()
 
-        for apt in apartments_data[:3]:
+        for apt in apartments_data:
             details = await get_apartment_details(second_page,apt["url"])
 
             apt.update(details)
-            print("Ready")
 
         await second_page.close()
 
