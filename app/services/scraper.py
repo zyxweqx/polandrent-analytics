@@ -3,9 +3,14 @@ import re
 
 from playwright.async_api import async_playwright
 from app.core.database import async_session_maker
-from app.models.apartments import Apartment
+from app.models.apartments import Apartment, Base
 from sqlalchemy import select
+from app.core.database import engine
 
+async def init_db():
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    print("DATABASE CREATED.")
 
 def clean_price_text(raw_price: str) -> float:
         clean_price = raw_price.replace(" ", "").replace("zł", "").replace("donegocjacji", "").replace("\n","").replace(",", ".")
@@ -36,7 +41,6 @@ async def dismiss_popups(page):
         print("Cookie button not clickable or missing.")
 
     await page.locator('[data-cy="l-card"]').first.wait_for(state="visible")
-
 
 async def dismiss_otodom_cookies(page):
     try:
@@ -227,33 +231,51 @@ async def get_apartment_details(page,url):
         print(f"Error:{url}: {e}")
         return {"sq_meters": None, "rooms": None, "floor": None}
 
+
 async def run_scraper():
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=False)
         context = await browser.new_context(
             viewport={'width': 1280, 'height': 800},
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (HTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
             permissions=[]
         )
 
         page = await context.new_page()
-        await page.goto("https://www.olx.pl/nieruchomosci/mieszkania/wynajem/poznan/", wait_until="networkidle")
-
-        await dismiss_popups(page)
-        apartments_data = await parse_apartments_list(page)
-
-        print("\n Apartments data:")
         second_page = await context.new_page()
 
-        for apt in apartments_data:
-            details = await get_apartment_details(second_page,apt["url"])
+        MAX_PAGES = 2
+        all_apartments_data = []
 
-            apt.update(details)
+        for current_page in range(1, MAX_PAGES + 1):
+            print(f"Scraping page {current_page} from {MAX_PAGES} pages")
+
+            if current_page == 1:
+                url = "https://www.olx.pl/nieruchomosci/mieszkania/wynajem/poznan/"
+            else:
+                url = f"https://www.olx.pl/nieruchomosci/mieszkania/wynajem/poznan/?page={current_page}"
+
+            await page.goto(url, wait_until="networkidle")
+
+            if current_page == 1:
+                await dismiss_popups(page)
+
+            page_data = await parse_apartments_list(page)
+            print("\n Apartments data:")
+
+            for apt in page_data:
+                details = await get_apartment_details(second_page, apt["url"])
+                apt.update(details)
+
+            all_apartments_data.extend(page_data)
 
         await second_page.close()
 
-        await save_to_db(apartments_data)
+        print(f"\n Saving {len(all_apartments_data)} flats in db")
+        await save_to_db(all_apartments_data)
+
         await browser.close()
 
 if __name__ == "__main__":
+    asyncio.run(init_db())
     asyncio.run(run_scraper())
