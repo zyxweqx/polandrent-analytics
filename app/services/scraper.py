@@ -108,110 +108,119 @@ async def save_to_db(apartments_data):
         print(f"Committing to the database... (Added: {added_count}, Skipped: {skipped_count})")
         await session.commit()
 
+async def parse_olx_details(page):
+    sq_meters, rooms, floor = None, None, None
+
+    try:
+        area_element = page.locator("p").filter(has_text="Powierzchnia:").first
+        await area_element.wait_for(state="visible", timeout=3000)
+        area_text = await area_element.inner_text()
+        match = re.search(r'\d+[.,]?\d*', area_text)
+        if match:
+            clean_area = match.group().replace(",", ".")
+            sq_meters = float(clean_area)
+    except Exception as e:
+         print(f"Not found meters on this page {e}")
+
+    try:
+        rooms_element = page.locator("p").filter(has_text="Liczba pokoi:").first
+        await rooms_element.wait_for(state="visible", timeout=3000)
+        rooms_text = await rooms_element.inner_text()
+        if "Kawalerka" in rooms_text or "kawalerka" in rooms_text:
+             rooms = 1
+        else:
+             match = re.search(r'\d+', rooms_text)
+             if match:
+                  rooms = int(match.group())
+    except Exception:
+        print("Not found rooms on this page")
+
+    try:
+        floor_element = page.locator("p").filter(has_text="Poziom:").first
+        await floor_element.wait_for(state="visible", timeout=3000)
+        floor_text = await floor_element.inner_text()
+        text_lower = floor_text.lower()
+        if "parter" in text_lower:
+            floor = 0
+        elif "suteryna" in text_lower:
+            floor = -1
+        elif "poddasze" in text_lower:
+            floor = 99
+        else:
+            match = re.search(r'\d+', floor_text)
+            if match:
+                floor = int(match.group())
+    except Exception:
+          print("Not found floors on this page")
+
+    return sq_meters, rooms, floor
+
+async def parse_otodom_details(page):
+    await dismiss_otodom_cookies(page)
+    sq_meters, rooms, floor = None, None, None
+
+    try:
+        area_element = page.locator('div:has-text("Powierzchnia") + div').first
+        await area_element.wait_for(state="visible", timeout=3000)
+        area_text = await area_element.inner_text()
+        match = re.search(r'\d+[.,]?\d*', area_text)
+        if match:
+            sq_meters = float(match.group().replace(",", "."))
+    except Exception as e:
+        print(f"Not found area on this page {e}")
+
+    try:
+        rooms_element = page.locator('div:has-text("Liczba pokoi") + div').first
+        await rooms_element.wait_for(state="visible", timeout=3000)
+        rooms_text = await rooms_element.inner_text()
+        if "Kawalerka" in rooms_text or "kawalerka" in rooms_text:
+            rooms = 1
+        else:
+            match = re.search(r'\d+', rooms_text)
+            if match:
+                rooms = int(match.group())
+    except Exception as e:
+        print(f"Not found rooms on this page {e}")
+
+    try:
+        floor_element = page.locator('div:has-text("Piętro") + div').first
+        await floor_element.wait_for(state="visible", timeout=3000)
+        floor_text = await floor_element.inner_text()
+        text_lower = floor_text.lower()
+        if "parter" in text_lower:
+            floor = 0
+        elif "suteryna" in text_lower:
+            floor = -1
+        elif "poddasze" in text_lower:
+            floor = 99
+        else:
+            match = re.search(r'\d+', floor_text)
+            if match:
+                floor = int(match.group())
+    except Exception as e:
+        print(f"Not found floors on this page {e}")
+
+    return sq_meters, rooms, floor
 
 async def get_apartment_details(page,url):
     print(f"[Details] Entry inside: {url}")
     try:
-        await page.goto(url,wait_until="domcontentloaded")
+        await page.goto(url, wait_until="domcontentloaded")
         await page.wait_for_timeout(1500)
 
-        sq_meters = None
-        rooms = None
-        floor = None
+        sq_meters, rooms, floor = None, None, None
 
         if "olx.pl" in url:
-            try:
-                area_element = page.locator("p").filter(has_text="Powierzchnia:").first
-                await area_element.wait_for(state="visible", timeout=3000)
-                area_text = await area_element.inner_text()
-                match = re.search(r'\d+[.,]?\d*', area_text)
-                if match:
-                    clean_area = match.group().replace(",", ".")
-                    sq_meters = float(clean_area)
-            except:
-                pass
-
-            try:
-                rooms_element = page.locator("p").filter(has_text="Liczba pokoi:").first
-                await rooms_element.wait_for(state="visible", timeout=3000)
-                rooms_text = await rooms_element.inner_text()
-                if "Kawalerka" in rooms_text or "kawalerka" in rooms_text:
-                    rooms = 1
-                else:
-                    match = re.search(r'\d+', rooms_text)
-                    if match:
-                        rooms = int(match.group())
-            except:
-                pass
-
-            try:
-                floor_element = page.locator("p").filter(has_text="Poziom:").first
-                await floor_element.wait_for(state="visible", timeout=3000)
-                floor_text = await floor_element.inner_text()
-                text_lower = floor_text.lower()
-                if "parter" in text_lower:
-                    floor = 0
-                elif "suteryna" in text_lower:
-                    floor = -1
-                elif "poddasze" in text_lower:
-                    floor = 99
-                else:
-                    match = re.search(r'\d+', floor_text)
-                    if match:
-                        floor = int(match.group())
-            except:
-                pass
-
+            sq_meters, rooms, floor = await parse_olx_details(page)
         elif "otodom.pl" in url:
-            await dismiss_otodom_cookies(page)
-
-            try:
-                area_element = page.locator('div:has-text("Powierzchnia") + div').first
-                await area_element.wait_for(state="visible", timeout=3000)
-                area_text = await area_element.inner_text()
-                match = re.search(r'\d+[.,]?\d*', area_text)
-                if match:
-                    sq_meters = float(match.group().replace(",", "."))
-            except:
-                pass
-
-            try:
-                rooms_element = page.locator('div:has-text("Liczba pokoi") + div').first
-                await rooms_element.wait_for(state="visible", timeout=3000)
-                rooms_text = await rooms_element.inner_text()
-                if "Kawalerka" in rooms_text or "kawalerka" in rooms_text:
-                    rooms = 1
-                else:
-                    match = re.search(r'\d+', rooms_text)
-                    if match:
-                        rooms = int(match.group())
-            except:
-                pass
-
-            try:
-                floor_element = page.locator('div:has-text("Piętro") + div').first
-                await floor_element.wait_for(state="visible", timeout=3000)
-                floor_text = await floor_element.inner_text()
-                text_lower = floor_text.lower()
-                if "parter" in text_lower:
-                    floor = 0
-                elif "suteryna" in text_lower:
-                    floor = -1
-                elif "poddasze" in text_lower:
-                    floor = 99
-                else:
-                    match = re.search(r'\d+', floor_text)
-                    if match:
-                        floor = int(match.group())
-            except:
-                pass
+            sq_meters, rooms, floor = await parse_otodom_details(page)
 
         print(f" -> Area: {sq_meters} m2 | Rooms: {rooms} | Floor: {floor}")
 
         return {
-           "sq_meters": float(sq_meters) if sq_meters is not None else None,
-           "rooms": int(rooms) if rooms is not None else None,
-           "floor": int(floor) if floor is not None else None
+            "sq_meters": float(sq_meters) if sq_meters is not None else None,
+            "rooms": int(rooms) if rooms is not None else None,
+            "floor": int(floor) if floor is not None else None
         }
 
     except Exception as e:
