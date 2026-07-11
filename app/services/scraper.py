@@ -106,6 +106,8 @@ async def save_to_db(apartments_data):
                 sq_meters=apt_data.get("sq_meters"),
                 rooms=apt_data.get("rooms"),
                 floor=apt_data.get("floor"),
+                additional_rent=apt_data.get("additional_rent"),
+                district=apt_data.get("district")
             )
             session.add(new_apt)
             added_count += 1
@@ -113,7 +115,7 @@ async def save_to_db(apartments_data):
         await session.commit()
 
 async def parse_olx_details(page):
-    sq_meters, rooms, floor = None, None, None
+    sq_meters, rooms, floor,additional_rent,district = None, None, None, None, None
 
     try:
         area_element = page.locator("p").filter(has_text="Powierzchnia:").first
@@ -157,11 +159,32 @@ async def parse_olx_details(page):
     except Exception:
           print("Not found floors on this page")
 
-    return sq_meters, rooms, floor
+    try:
+        rent_element = page.locator("p").filter(has_text="Czynsz").first
+        await rent_element.wait_for(state="visible", timeout=2000)
+        rent_text = await rent_element.inner_text()
+        clean_rent_text = rent_text.replace(" ", "").replace(" ", "")
+        match = re.search(r'\d+[.,]?\d*', clean_rent_text)
+        if match: additional_rent = float(match.group().replace(",", "."))
+    except Exception:
+        print ("Not found rent on this page")
+
+    try:
+        loc_element = page.locator("p").filter(has_text="Poznań").first
+        await loc_element.wait_for(state="visible", timeout=2000)
+        loc_text = await loc_element.inner_text()
+        if "," in loc_text:
+            parts = loc_text.split(",")
+            if len(parts) > 1:
+                district = parts[1].strip()
+    except Exception:
+        print("Not found district on this page")
+
+    return sq_meters, rooms, floor, additional_rent, district
 
 async def parse_otodom_details(page):
     await dismiss_otodom_cookies(page)
-    sq_meters, rooms, floor = None, None, None
+    sq_meters, rooms, floor,additional_rent, district = None, None, None, None, None
 
     try:
         area_element = page.locator('div:has-text("Powierzchnia") + div').first
@@ -204,7 +227,28 @@ async def parse_otodom_details(page):
     except Exception as e:
         print(f"Not found floors on this page {e}")
 
-    return sq_meters, rooms, floor
+    try:
+        rent_element = page.locator('div:has-text("Czynsz") + div').first
+        await rent_element.wait_for(state="visible", timeout=2000)
+        rent_text = await rent_element.inner_text()
+        clean_rent_text = rent_text.replace(" ", "").replace(" ", "")
+        match = re.search(r'\d+[.,]?\d*', clean_rent_text)
+        if match: additional_rent = float(match.group().replace(",", "."))
+    except Exception:
+        print("Not found rent on this page")
+
+    try:
+        loc_element = page.locator('a[href*="#map"]').first
+        await loc_element.wait_for(state="visible", timeout=2000)
+        loc_text = await loc_element.inner_text()
+
+        if "Poznań" in loc_text:
+            parts = loc_text.split(",")
+            district = parts[-1].strip()
+    except Exception:
+        print("Not found district on this page")
+
+    return sq_meters, rooms, floor, additional_rent, district
 
 async def get_apartment_details(page,url):
     print(f"[Details] Entry inside: {url}")
@@ -212,25 +256,26 @@ async def get_apartment_details(page,url):
         await page.goto(url, wait_until="domcontentloaded")
         await page.wait_for_timeout(1500)
 
-        sq_meters, rooms, floor = None, None, None
+        sq_meters, rooms, floor, additional_rent, district = None, None, None, None, None
 
         if "olx.pl" in url:
-            sq_meters, rooms, floor = await parse_olx_details(page)
+            sq_meters, rooms, floor,additional_rent, district = await parse_olx_details(page)
         elif "otodom.pl" in url:
-            sq_meters, rooms, floor = await parse_otodom_details(page)
+            sq_meters, rooms, floor,additional_rent, district = await parse_otodom_details(page)
 
         print(f" -> Area: {sq_meters} m2 | Rooms: {rooms} | Floor: {floor}")
 
         return {
             "sq_meters": float(sq_meters) if sq_meters is not None else None,
             "rooms": int(rooms) if rooms is not None else None,
-            "floor": int(floor) if floor is not None else None
+            "floor": int(floor) if floor is not None else None,
+            "additional_rent": float(additional_rent) if additional_rent is not None else None,
+            "district": district if district is not None else None
         }
 
     except Exception as e:
         print(f"Error:{url}: {e}")
         return {"sq_meters": None, "rooms": None, "floor": None}
-
 
 async def run_scraper():
     async with async_playwright() as p:
@@ -244,7 +289,7 @@ async def run_scraper():
         page = await context.new_page()
         second_page = await context.new_page()
 
-        MAX_PAGES = 2
+        MAX_PAGES = 10
         all_apartments_data = []
 
         for current_page in range(1, MAX_PAGES + 1):
@@ -255,7 +300,7 @@ async def run_scraper():
             else:
                 url = f"https://www.olx.pl/nieruchomosci/mieszkania/wynajem/poznan/?page={current_page}"
 
-            await page.goto(url, wait_until="networkidle")
+            await page.goto(url, wait_until="domcontentloaded")
 
             if current_page == 1:
                 await dismiss_popups(page)
@@ -267,13 +312,11 @@ async def run_scraper():
                 details = await get_apartment_details(second_page, apt["url"])
                 apt.update(details)
 
+            await save_to_db(page_data)
+
             all_apartments_data.extend(page_data)
 
         await second_page.close()
-
-        print(f"\n Saving {len(all_apartments_data)} flats in db")
-        await save_to_db(all_apartments_data)
-
         await browser.close()
 
 if __name__ == "__main__":

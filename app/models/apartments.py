@@ -1,5 +1,4 @@
 import datetime
-from typing import Optional
 
 from sqlalchemy import String, Float, Integer, Boolean, DateTime, func
 from sqlalchemy.orm import DeclarativeBase, Mapped,mapped_column
@@ -22,9 +21,6 @@ class Apartment(Base):
     sq_meters: Mapped[float | None] = mapped_column(Float)
     rooms: Mapped[int | None] = mapped_column(Integer)
     floor: Mapped[int | None] = mapped_column(Integer)
-
-    is_furnished: Mapped[bool | None] = mapped_column(Boolean)
-    pets_allowed: Mapped[bool | None] = mapped_column(Boolean)
 
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime,
