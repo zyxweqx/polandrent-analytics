@@ -1,13 +1,14 @@
 import asyncio
 import re
+from typing import List, Dict, Any, Optional, Tuple
 
-from playwright.async_api import async_playwright
+from playwright.async_api import async_playwright, Page
 from app.core.database import async_session_maker
 from app.models.apartments import Apartment, Base
 from sqlalchemy import select
 from app.core.database import engine
 
-async def init_db():
+async def init_db() -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     print("DATABASE CREATED.")
@@ -17,7 +18,7 @@ def clean_price_text(raw_price: str) -> float:
         final_price = float(clean_price)
         return final_price
 
-async def dismiss_popups(page):
+async def dismiss_popups(page) -> None:
     print("Dismissing popups...")
     await page.keyboard.press("Escape")
     await page.wait_for_timeout(1000)
@@ -33,7 +34,6 @@ async def dismiss_popups(page):
 
     accept_cookies_btn = page.get_by_role("button", name="Akceptuj wszystkie")
     try:
-
         if await accept_cookies_btn.is_visible():
             print("Cookie banner detected, accepting...")
             await accept_cookies_btn.click()
@@ -42,7 +42,7 @@ async def dismiss_popups(page):
 
     await page.locator('[data-cy="l-card"]').first.wait_for(state="visible")
 
-async def dismiss_otodom_cookies(page):
+async def dismiss_otodom_cookies(page) -> None:
     try:
         otodom_cookies_btn = page.get_by_role("button", name="Akceptuj wszystkie")
 
@@ -52,13 +52,13 @@ async def dismiss_otodom_cookies(page):
     except Exception:
         print("Cookie button not clickable or missing.")
 
-async def parse_apartments_list(page):
+async def parse_apartments_list(page: Page) -> List[Dict[str, Any]]:
     print("Parsing apartments list...")
     await page.locator('[data-cy="l-card"]').first.wait_for(state="visible")
     all_cards = await page.locator('[data-cy="l-card"]').all()
     print(f"Listings found on the page: {len(all_cards)}")
 
-    results = []
+    results: List[Dict[str, Any]] = []
 
     for i, card in enumerate(all_cards):
         try:
@@ -84,7 +84,7 @@ async def parse_apartments_list(page):
 
     return results
 
-async def save_to_db(apartments_data):
+async def save_to_db(apartments_data: List[Dict[str, Any]]) -> None:
     async with async_session_maker() as session:
         added_count = 0
         skipped_count = 0
@@ -114,7 +114,7 @@ async def save_to_db(apartments_data):
         print(f"Committing to the database... (Added: {added_count}, Skipped: {skipped_count})")
         await session.commit()
 
-async def parse_olx_details(page):
+async def parse_olx_details(page: Page) -> Tuple[Optional[float], Optional[int], Optional[int], Optional[float], Optional[str]]:
     sq_meters, rooms, floor,additional_rent,district = None, None, None, None, None
 
     try:
@@ -182,7 +182,7 @@ async def parse_olx_details(page):
 
     return sq_meters, rooms, floor, additional_rent, district
 
-async def parse_otodom_details(page):
+async def parse_otodom_details(page: Page) -> Tuple[Optional[float], Optional[int], Optional[int], Optional[float], Optional[str]]:
     await dismiss_otodom_cookies(page)
     sq_meters, rooms, floor,additional_rent, district = None, None, None, None, None
 
@@ -250,7 +250,7 @@ async def parse_otodom_details(page):
 
     return sq_meters, rooms, floor, additional_rent, district
 
-async def get_apartment_details(page,url):
+async def get_apartment_details(page: Page, url: str) -> Dict[str, Any]:
     print(f"[Details] Entry inside: {url}")
     try:
         await page.goto(url, wait_until="domcontentloaded")
@@ -277,7 +277,7 @@ async def get_apartment_details(page,url):
         print(f"Error:{url}: {e}")
         return {"sq_meters": None, "rooms": None, "floor": None}
 
-async def run_scraper():
+async def run_scraper() -> None:
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=False)
         context = await browser.new_context(
