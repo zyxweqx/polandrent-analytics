@@ -1,7 +1,9 @@
 import os
-
 import pandas as pd
 import sqlite3 as sql
+import asyncio
+
+from app.services.notifier import send_tg_message
 
 def run_analytics():
     pd.set_option('display.max_columns', None)
