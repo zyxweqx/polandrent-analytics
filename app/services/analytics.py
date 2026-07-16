@@ -30,13 +30,24 @@ def run_analytics():
     df_clean = df_clean.drop_duplicates(subset=['title'])
 
     df_clean = df_clean[~df_clean['title'].str.contains(r'(?i)pok[oó]j', na=False, regex=True)]
-    print("\n- Top 5 the cheapest apartments per m² -")
+    message_lines = ["\n- Top 5 the cheapest apartments per m² -"]
     top_5 = df_clean.sort_values(by='price_per_sqm').head(5)
 
     for index, row in top_5.iterrows():
-        print(f"Title: {row['title']}")
-        print(f" District: {row['district']} | 💰 Price per m²: {row['price_per_sqm']:.2f} zł")
-        print(f" URL: {row['url']}")
+        apt_block = (
+            f"🏢 <b>{row['title']}</b>\n"
+            f"📍 District: {row['district']}\n"
+            f"💰 Price: {row['total_price']:.0f} zł (<i>{row['price_per_sqm']:.2f} zł/м²</i>)\n"
+            f"🔗 <a href='{row['url']}'>Open url</a>\n"
+            f"{'—' * 20}"
+        )
+        message_lines.append(apt_block)
+
+        print(f"Ready: {row['title']}")
+
+    final_text = "\n".join(message_lines)
+
+    asyncio.run(send_tg_message(final_text))
 
 if __name__ == '__main__':
     run_analytics()

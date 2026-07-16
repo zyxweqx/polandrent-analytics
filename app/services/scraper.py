@@ -8,11 +8,6 @@ from app.models.apartments import Apartment, Base
 from sqlalchemy import select
 from app.core.database import engine
 
-async def init_db() -> None:
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    print("DATABASE CREATED.")
-
 def clean_price_text(raw_price: str) -> float:
         clean_price = raw_price.replace(" ", "").replace("zł", "").replace("donegocjacji", "").replace("\n","").replace(",", ".")
         final_price = float(clean_price)
@@ -289,7 +284,7 @@ async def run_scraper() -> None:
         page = await context.new_page()
         second_page = await context.new_page()
 
-        MAX_PAGES = 10
+        MAX_PAGES = 50
         all_apartments_data = []
 
         for current_page in range(1, MAX_PAGES + 1):
@@ -320,5 +315,4 @@ async def run_scraper() -> None:
         await browser.close()
 
 if __name__ == "__main__":
-    asyncio.run(init_db())
     asyncio.run(run_scraper())
