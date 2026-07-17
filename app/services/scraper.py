@@ -274,7 +274,7 @@ async def get_apartment_details(page: Page, url: str) -> Dict[str, Any]:
 
 async def run_scraper() -> None:
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=False)
+        browser = await p.chromium.launch(headless=True)
         context = await browser.new_context(
             viewport={'width': 1280, 'height': 800},
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
@@ -284,7 +284,7 @@ async def run_scraper() -> None:
         page = await context.new_page()
         second_page = await context.new_page()
 
-        MAX_PAGES = 50
+        MAX_PAGES = 10
         all_apartments_data = []
 
         for current_page in range(1, MAX_PAGES + 1):
