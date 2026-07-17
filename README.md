@@ -66,7 +66,7 @@ For daily updates, it is recommended to schedule the `docker-compose up` command
 ## Project Structure
 
 * `app/services/scraper.py`: Core asynchronous web scraping logic.
-* `app/services/analytics.py`: Data cleaning, processing.
+* `app/services/analytics.py`: Data cleaning, processinggi.
 * `app/services/notifier.py`: Telegram bot integration and message formatting.
 * `app/models/`: SQLAlchemy database schema definitions.
 * `migrations/`: Alembic migration scripts and version control.

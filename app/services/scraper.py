@@ -284,7 +284,7 @@ async def run_scraper() -> None:
         page = await context.new_page()
         second_page = await context.new_page()
 
-        MAX_PAGES = 10
+        MAX_PAGES = 1
         all_apartments_data = []
 
         for current_page in range(1, MAX_PAGES + 1):
