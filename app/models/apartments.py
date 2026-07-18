@@ -1,11 +1,10 @@
 import datetime
 
-from sqlalchemy import String, Float, Integer, Boolean, DateTime, func
-from sqlalchemy.orm import DeclarativeBase, Mapped,mapped_column
+from sqlalchemy import String, Float, Integer, DateTime, func
+from sqlalchemy.orm import Mapped,mapped_column
 
+from app.models.base import Base
 
-class Base(DeclarativeBase):
-    pass
 
 class Apartment(Base):
     __tablename__ = 'apartments'
