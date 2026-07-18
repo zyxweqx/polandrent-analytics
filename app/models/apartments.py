@@ -1,6 +1,6 @@
 import datetime
 
-from sqlalchemy import String, Float, Integer, DateTime, func
+from sqlalchemy import String, Float, Integer, DateTime, func, Boolean
 from sqlalchemy.orm import Mapped,mapped_column
 
 from app.models.base import Base
@@ -20,6 +20,8 @@ class Apartment(Base):
     sq_meters: Mapped[float | None] = mapped_column(Float)
     rooms: Mapped[int | None] = mapped_column(Integer)
     floor: Mapped[int | None] = mapped_column(Integer)
+
+    pets_allowed: Mapped[bool| None] = mapped_column(Boolean)
 
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime,
