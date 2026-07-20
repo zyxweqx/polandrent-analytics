@@ -1,14 +1,28 @@
 version: '3.8'
 
 services:
+  db:
+    image: postgres:15-alpine
+    container_name: polandrent_postgres
+    restart: always
+    env_file:
+      - .env
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data # Сохраняем данные, чтобы они не удалились при перезапуске
+
   polandrent-app:
     build: .
     container_name: polandrent_container
     env_file:
       - .env
-    volumes:
-      - ./polandrent.db:/app/polandrent.db
+    depends_on:
+      - db
     command: >
       bash -c "alembic upgrade head && 
                python app/services/scraper.py && 
                python app/services/analytics.py"
+
+volumes:
+  postgres_data:

@@ -6,7 +6,7 @@ from app.models.base import Base
 class Subscriptions(Base):
     __tablename__ = 'subscriptions'
 
-    id = Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[int] = mapped_column(primary_key=True)
 
     user_id: Mapped[int] = mapped_column(ForeignKey('users.id', ondelete='CASCADE'))
 

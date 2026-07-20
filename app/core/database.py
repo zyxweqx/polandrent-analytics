@@ -1,11 +1,15 @@
 import os
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 
-BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+from dotenv import load_dotenv
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 
-DB_PATH = os.path.join(BASE_DIR, "polandrent.db")
+load_dotenv()
+DATABASE_URL = os.environ.get("DATABASE_URL")
 
-DATABASE_URL = f"sqlite+aiosqlite:///{DB_PATH}"
+engine = create_async_engine(DATABASE_URL, echo=False)
 
-engine = create_async_engine(DATABASE_URL, echo=True)
-async_session_maker = async_sessionmaker(engine, expire_on_commit=False)
+async_session_maker = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+
+async def get_db():
+    async with async_session_maker() as session:
+        yield session
