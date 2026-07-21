@@ -27,3 +27,16 @@ class SubscriptionResponse(SubscriptionBase):
     user_id: int
 
     model_config = ConfigDict(from_attributes=True)
+
+class SubscriptionUpdate(BaseModel):
+    city: Optional[str] = None
+    district: Optional[str] = None
+    price_min: Optional[float] = None
+    price_max: Optional[float] = None
+    rooms_min: Optional[int] = None
+    rooms_max: Optional[int] = None
+    sq_meters_min: Optional[float] = None
+    sq_meters_max: Optional[float] = None
+    pets_allowed: Optional[bool] = None
+    is_owner: Optional[bool] = None
+    is_active: Optional[bool] = None
