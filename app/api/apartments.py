@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.models.apartments import Apartment
 from app.schemas.apartments import ApartmentsResponse, ApartmentsCreate, ApartmentsUpdate
+from app.services.matching import find_matches
 
 router = APIRouter(prefix="/apartments", tags=["apartments"])
 
@@ -29,12 +30,16 @@ async def get_all_apartments(db: AsyncSession = Depends(get_db)):
 
 @router.post("/", response_model=ApartmentsResponse)
 async def create_apartment(aps_data: ApartmentsCreate, db: AsyncSession = Depends(get_db)):
-    new_aps = Apartment(**aps_data.model_dump())
-    db.add(new_aps)
+    new_ap = Apartment(**aps_data.model_dump())
+    db.add(new_ap)
     await db.commit()
-    await db.refresh(new_aps)
+    await db.refresh(new_ap)
 
-    return new_aps
+    matches = await find_matches(db,new_ap)
+
+    print(f"matches: {len(matches)}")
+
+    return new_ap
 
 @router.patch("/{aps_id}", response_model=ApartmentsResponse)
 async def update_apartment(aps_id: int, aps_data: ApartmentsUpdate, db: AsyncSession = Depends(get_db)):
