@@ -2,6 +2,7 @@ from fastapi import HTTPException
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -32,9 +33,13 @@ async def get_all_apartments(db: AsyncSession = Depends(get_db)):
 async def create_apartment(aps_data: ApartmentsCreate, db: AsyncSession = Depends(get_db)):
     new_ap = Apartment(**aps_data.model_dump())
     db.add(new_ap)
-    await db.commit()
-    await db.refresh(new_ap)
 
+    try:
+        await db.commit()
+        await db.refresh(new_ap)
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail="Apartment already exists")
     matches = await find_matches(db,new_ap)
 
     print(f"matches: {len(matches)}")

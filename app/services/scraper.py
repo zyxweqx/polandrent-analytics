@@ -2,11 +2,8 @@ import asyncio
 import re
 from typing import List, Dict, Any, Optional, Tuple
 
+import httpx
 from playwright.async_api import async_playwright, Page
-from app.core.database import async_session_maker
-from app.models.apartments import Apartment, Base
-from sqlalchemy import select
-from app.core.database import engine
 
 def clean_price_text(raw_price: str) -> float:
         clean_price = raw_price.replace(" ", "").replace("zł", "").replace("donegocjacji", "").replace("\n","").replace(",", ".")
@@ -47,6 +44,29 @@ async def dismiss_otodom_cookies(page) -> None:
     except Exception:
         print("Cookie button not clickable or missing.")
 
+async def send_apartments_to_api(apartments_data: list):
+    async with httpx.AsyncClient() as client:
+        url = "http://127.0.0.1:8080/apartments/"
+        for apt_data in apartments_data:
+            try:
+                response = await client.post(url, json=apt_data)
+
+                if response.status_code in (200,201):
+                    print(f"Successfully added: {apt_data.get('url')}")
+
+                elif response.status_code in (400,409):
+                    print(f"Missed (already in database): {apt_data.get('url')}")
+
+                elif response.status_code == 422:
+                    print(f"Data Error: {apt_data.get('url')}: {response.text}")
+
+                else:
+                    print(f"Unexpected status code: {response.status_code}: {response.text}")
+
+            except Exception as e:
+                print(f"Unexpected error: {e}")
+                continue
+
 async def parse_apartments_list(page: Page) -> List[Dict[str, Any]]:
     print("Parsing apartments list...")
     await page.locator('[data-cy="l-card"]').first.wait_for(state="visible")
@@ -78,36 +98,6 @@ async def parse_apartments_list(page: Page) -> List[Dict[str, Any]]:
             continue
 
     return results
-
-async def save_to_db(apartments_data: List[Dict[str, Any]]) -> None:
-    async with async_session_maker() as session:
-        added_count = 0
-        skipped_count = 0
-
-        for apt_data in apartments_data:
-            stmt = select(Apartment).where(Apartment.url == apt_data["url"])
-            result = await session.execute(stmt)
-            existing_apt = result.scalar_one_or_none()
-
-            if existing_apt:
-                skipped_count += 1
-                continue
-
-            new_apt = Apartment(
-                url=apt_data["url"],
-                title=apt_data["title"],
-                price=apt_data["price"],
-                city=apt_data["city"],
-                sq_meters=apt_data.get("sq_meters"),
-                rooms=apt_data.get("rooms"),
-                floor=apt_data.get("floor"),
-                additional_rent=apt_data.get("additional_rent"),
-                district=apt_data.get("district")
-            )
-            session.add(new_apt)
-            added_count += 1
-        print(f"Committing to the database... (Added: {added_count}, Skipped: {skipped_count})")
-        await session.commit()
 
 async def parse_olx_details(page: Page) -> Tuple[Optional[float], Optional[int], Optional[int], Optional[float], Optional[str]]:
     sq_meters, rooms, floor,additional_rent,district = None, None, None, None, None
@@ -158,7 +148,7 @@ async def parse_olx_details(page: Page) -> Tuple[Optional[float], Optional[int],
         rent_element = page.locator("p").filter(has_text="Czynsz").first
         await rent_element.wait_for(state="visible", timeout=2000)
         rent_text = await rent_element.inner_text()
-        clean_rent_text = rent_text.replace(" ", "").replace(" ", "")
+        clean_rent_text = rent_text.replace(" ", "")
         match = re.search(r'\d+[.,]?\d*', clean_rent_text)
         if match: additional_rent = float(match.group().replace(",", "."))
     except Exception:
@@ -261,16 +251,16 @@ async def get_apartment_details(page: Page, url: str) -> Dict[str, Any]:
         print(f" -> Area: {sq_meters} m2 | Rooms: {rooms} | Floor: {floor}")
 
         return {
-            "sq_meters": float(sq_meters) if sq_meters is not None else None,
-            "rooms": int(rooms) if rooms is not None else None,
-            "floor": int(floor) if floor is not None else None,
-            "additional_rent": float(additional_rent) if additional_rent is not None else None,
-            "district": district if district is not None else None
+            "sq_meters": sq_meters,
+            "rooms": rooms,
+            "floor": floor,
+            "additional_rent": additional_rent,
+            "district": district
         }
 
     except Exception as e:
         print(f"Error:{url}: {e}")
-        return {"sq_meters": None, "rooms": None, "floor": None}
+        return {"sq_meters": None, "rooms": None, "floor": None, "additional_rent": None, "district": None}
 
 async def run_scraper() -> None:
     async with async_playwright() as p:
@@ -284,8 +274,7 @@ async def run_scraper() -> None:
         page = await context.new_page()
         second_page = await context.new_page()
 
-        MAX_PAGES = 1
-        all_apartments_data = []
+        MAX_PAGES = 5
 
         for current_page in range(1, MAX_PAGES + 1):
             print(f"Scraping page {current_page} from {MAX_PAGES} pages")
@@ -307,9 +296,8 @@ async def run_scraper() -> None:
                 details = await get_apartment_details(second_page, apt["url"])
                 apt.update(details)
 
-            await save_to_db(page_data)
+            await send_apartments_to_api(page_data)
 
-            all_apartments_data.extend(page_data)
 
         await second_page.close()
         await browser.close()
