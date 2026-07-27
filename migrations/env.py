@@ -12,9 +12,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 load_dotenv()
 
 from app.models.base import Base
-from app.models.apartments import Apartment
-from app.models.users import User
-from app.models.subscriptions import Subscriptions
 
 
 config = context.config
