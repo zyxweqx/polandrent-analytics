@@ -9,6 +9,7 @@ from aiogram.enums import ParseMode
 from dotenv import load_dotenv
 
 from app.bot.handlers import base
+from app.bot.handlers import subs
 
 load_dotenv()
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -19,6 +20,7 @@ async def main() -> None:
     dp = Dispatcher()
 
     dp.include_router(base.router)
+    dp.include_router(subs.router)
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
