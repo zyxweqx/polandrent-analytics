@@ -2,9 +2,13 @@ from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, CallbackQuery
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot.kbds.inline import get_cities_keyboard
 from app.bot.states.sub_states import SubFSM
+from app.models.subscriptions import Subscription
+from app.models.users import User
 
 router = Router()
 
@@ -43,7 +47,7 @@ async def cmd_city(callback: CallbackQuery, state: FSMContext) -> None:
     await callback.answer()
 
 @router.message(SubFSM.min_rooms)
-async def min_rooms(message: Message, state: FSMContext) -> None:
+async def cmd_min_rooms(message: Message, state: FSMContext) -> None:
     if not message.text or not message.text.isdigit():
         await message.answer("Please enter the number of rooms as a digit (e.g., 1, 2, or 3).")
         return
@@ -66,5 +70,52 @@ async def min_rooms(message: Message, state: FSMContext) -> None:
         "Just enter the number, for example: 3500",
         parse_mode="HTML"
     )
+
+@router.message(SubFSM.max_price)
+async def cmd_max_price(message: Message, state: FSMContext, session: AsyncSession) -> None:
+    if not message.text or not message.text.isdigit():
+        await message.answer("Please enter the maximum price as a digit (e.g., 3500).")
+        return
+
+    max_price = float(message.text)
+
+    if max_price < 500 or max_price > 50000:
+        await message.answer("The amount looks suspicious 🤔. Please enter the actual maximum price in zlotys.")
+        return
+
+
+    user_query = select(User).where(User.telegram_id == message.from_user.id)
+    user_result = await session.execute(user_query)
+    db_user = user_result.scalar_one_or_none()
+
+    if not db_user:
+        await message.answer("Error: You are not registered in the database. Please send /start first.")
+        await state.clear()
+        return
+
+    data = await state.get_data()
+    city = data.get("city")
+    min_rooms = int(data.get("min_rooms"))
+
+    new_sub = Subscription(
+        user_id=db_user.id,
+        city=city,
+        rooms_min=min_rooms,
+        price_max=max_price
+    )
+
+    session.add(new_sub)
+    await session.commit()
+
+    await message.answer(
+        f"✅ <b>Subscription successfully created!</b>\n\n"
+        f"📍 City: <b>{city}</b>\n"
+        f"🛏 Rooms (min.): <b>{min_rooms}</b>\n"
+        f"💰 Price (max.): <b>{max_price} PLN</b>\n\n"
+        f"As soon as a suitable apartment becomes available, I'll send it to you right away!",
+        parse_mode="HTML"
+    )
+
+    await state.clear()
 
 
