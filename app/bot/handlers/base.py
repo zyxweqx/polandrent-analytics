@@ -3,6 +3,7 @@ from aiogram.filters import CommandStart
 from aiogram.types import Message
 from sqlalchemy import select
 
+from app.bot.kbds.reply import main_menu
 from app.core.database import async_session_maker
 from app.models.users import User
 
@@ -22,6 +23,12 @@ async def cmd_start(message: Message) -> None:
             new_user = User(telegram_id=user_id, username=username)
             session.add(new_user)
             await session.commit()
-            await message.answer("You have been registered")
+            await message.answer(
+                "Welcome! You have been registered. 🎉\nUse the menu below to manage your apartment subscriptions.",
+                reply_markup=main_menu
+            )
         else:
-            await message.answer("You are already registered")
+            await message.answer(
+                "Welcome back! 👋\nWhat would you like to do?",
+                reply_markup=main_menu
+            )
