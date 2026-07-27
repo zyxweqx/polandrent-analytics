@@ -118,4 +118,46 @@ async def cmd_max_price(message: Message, state: FSMContext, session: AsyncSessi
 
     await state.clear()
 
+@router.message(F.text == "➕ New Subscription")
+async def cmd_new_sub(message: Message, state: FSMContext) -> None:
+    await state.clear()
+
+    await state.set_state(SubFSM.city)
+
+    await message.answer(
+        "Great! Let's set up a new subscription. \n\n"
+        "📍 <b>Step 1:</b> Choose a city from the list below:",
+        reply_markup=get_cities_keyboard(),
+        parse_mode="HTML"
+    )
+
+@router.message(F.text == "📋 My Subscriptions")
+async def cmd_my_subscriptions(message: Message, state: FSMContext, session: AsyncSession) -> None:
+    await state.clear()
+
+    user_query = select(User).where(User.telegram_id == message.from_user.id)
+    user_result = await session.execute(user_query)
+    db_user = user_result.scalar_one_or_none()
+
+    if not db_user:
+        await message.answer("Error: You are not registered or have no subscriptions yet")
+        return
+
+    subs_query = select(Subscription).where(Subscription.user_id == db_user.id)
+    subs_result = await session.execute(subs_query)
+    subscriptions = subs_result.scalars().all()
+
+    if not subscriptions:
+        await message.answer("You don't have any subscriptions yet.")
+        return
+
+    await message.answer("Here are your active subscriptions:")
+
+    for sub in subscriptions:
+        text = (
+            f"📍 City: <b>{sub.city}</b>\n"
+            f"🛏 Rooms (min.): <b>{sub.rooms_min}</b>\n"
+            f"💰 Price (max.): <b>{sub.price_max} PLN</b>\n"
+        )
+        await message.answer(text,parse_mode="HTML")
 
