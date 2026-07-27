@@ -9,3 +9,15 @@ def get_cities_keyboard() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="Gdańsk", callback_data="city_gdansk")]
     ])
     return keyboard
+
+def get_delete_sub_keyboard(sub_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="❌ Delete Subscription",
+                    callback_data=f"del_sub_{sub_id}"
+                )
+            ]
+        ]
+    )

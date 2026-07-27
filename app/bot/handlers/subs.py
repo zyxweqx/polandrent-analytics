@@ -2,10 +2,10 @@ from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, CallbackQuery
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.bot.kbds.inline import get_cities_keyboard
+from app.bot.kbds.inline import get_cities_keyboard, get_delete_sub_keyboard
 from app.bot.states.sub_states import SubFSM
 from app.models.subscriptions import Subscription
 from app.models.users import User
@@ -159,5 +159,20 @@ async def cmd_my_subscriptions(message: Message, state: FSMContext, session: Asy
             f"🛏 Rooms (min.): <b>{sub.rooms_min}</b>\n"
             f"💰 Price (max.): <b>{sub.price_max} PLN</b>\n"
         )
-        await message.answer(text,parse_mode="HTML")
+        await message.answer(
+            text,
+            parse_mode="HTML",
+            reply_markup=get_delete_sub_keyboard(sub.id)
+        )
 
+@router.callback_query(F.data_startswith("del_sub_"))
+async def cmd_delete_subscription(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
+    sub_id = int(callback.data.split("_")[1])
+
+    delete_query = delete(Subscription).where(Subscription.id == sub_id)
+    await session.execute(delete_query)
+    await session.commit()
+
+    await callback.answer("Subscription successfully deleted!", show_alert=False)
+
+    await callback.message.delete()
