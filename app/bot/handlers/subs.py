@@ -42,4 +42,29 @@ async def cmd_city(callback: CallbackQuery, state: FSMContext) -> None:
 
     await callback.answer()
 
+@router.message(SubFSM.min_rooms)
+async def min_rooms(message: Message, state: FSMContext) -> None:
+    if not message.text or not message.text.isdigit():
+        await message.answer("Please enter the number of rooms as a digit (e.g., 1, 2, or 3).")
+        return
+
+    rooms = int(message.text)
+
+    if rooms < 1 or rooms > 10:
+        await message.answer("This doesn't seem to be a typical apartment 😅 Please enter the actual number of rooms (from 1 to 10).")
+        return
+
+    await state.update_data(min_rooms=rooms)
+
+    await state.set_state(SubFSM.min_rooms)
+
+    await state.set_state(SubFSM.max_price)
+
+    await message.answer(
+        f"Minimum room number: {rooms} \n"
+        "Now specify the maximum rental price including all fees (in zlotys).\n"
+        "Just enter the number, for example: 3500",
+        parse_mode="HTML"
+    )
+
 
