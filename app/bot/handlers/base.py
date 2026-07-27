@@ -1,5 +1,5 @@
 from aiogram import Router
-from aiogram.filters import CommandStart
+from aiogram.filters import CommandStart, Command
 from aiogram.types import Message
 from sqlalchemy import select
 
@@ -10,6 +10,7 @@ from app.models.users import User
 router = Router()
 
 @router.message(CommandStart())
+@router.message(Command("menu"))
 async def cmd_start(message: Message) -> None:
     user_id = message.from_user.id
     username = message.from_user.username
