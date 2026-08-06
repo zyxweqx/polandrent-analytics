@@ -1,39 +1,50 @@
-import os
-import pandas as pd
-import sqlite3 as sql
 import asyncio
 
+import pandas as pd
+from sqlalchemy import create_engine
+
+from app.core.config import settings
 from app.services.notifier import send_tg_message
 
-def run_analytics():
+
+def _sync_database_url() -> str:
+    return settings.DATABASE_URL.replace("+asyncpg", "+psycopg2")
+
+
+def run_analytics() -> None:
     pd.set_option('display.max_columns', None)
     pd.set_option('display.width', 1000)
     pd.set_option('display.max_colwidth', 40)
 
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    db_path = os.path.join(base_dir, '..', '..', 'polandrent.db')
-    conn = sql.connect(db_path)
+    engine = create_engine(_sync_database_url())
+    df = pd.read_sql_query("SELECT * FROM apartments", engine)
 
-    df = pd.read_sql_query("SELECT * FROM apartments", conn)
+    if df.empty:
+        print("No apartments in the database yet, nothing to analyze.")
+        return
 
     df['additional_rent'] = df['additional_rent'].fillna(0)
     df['total_price'] = df['price'] + df['additional_rent']
-    df['price_per_sqm'] = df['total_price'] / df['sq_meters']
+
+    df_clean = df.dropna(subset=['district', 'sq_meters'])
+    df_clean = df_clean[df_clean['sq_meters'] > 0]
+    df_clean = df_clean[df_clean['district'] != 'wielkopolskie']
+    df_clean = df_clean.drop_duplicates(subset=['title'])
+    df_clean = df_clean[~df_clean['title'].str.contains(r'(?i)pok[oó]j', na=False, regex=True)]
+    df_clean['price_per_sqm'] = df_clean['total_price'] / df_clean['sq_meters']
 
     print("Average price per district: ")
-    stats = df.groupby('district')['total_price'].mean().sort_values(ascending=False)
+    stats = df_clean.groupby('district')['total_price'].mean().sort_values(ascending=False)
     print(stats)
 
-    df_clean = df.dropna(subset=['district'])
-    df_clean = df_clean[df_clean['district'] != 'wielkopolskie']
+    if df_clean.empty:
+        print("Nothing left after cleaning, skipping the Telegram report.")
+        return
 
-    df_clean = df_clean.drop_duplicates(subset=['title'])
-
-    df_clean = df_clean[~df_clean['title'].str.contains(r'(?i)pok[oó]j', na=False, regex=True)]
     message_lines = ["\n- Top 5 the cheapest apartments per m² -"]
     top_5 = df_clean.sort_values(by='price_per_sqm').head(5)
 
-    for index, row in top_5.iterrows():
+    for _, row in top_5.iterrows():
         apt_block = (
             f"🏢 <b>{row['title']}</b>\n"
             f"📍 District: {row['district']}\n"
@@ -42,12 +53,16 @@ def run_analytics():
             f"{'—' * 20}"
         )
         message_lines.append(apt_block)
-
         print(f"Ready: {row['title']}")
 
     final_text = "\n".join(message_lines)
 
-    asyncio.run(send_tg_message(final_text))
+    if not settings.TELEGRAM_CHAT_ID:
+        print("TELEGRAM_CHAT_ID is not set, skipping Telegram report.")
+        return
+
+    asyncio.run(send_tg_message(settings.TELEGRAM_CHAT_ID, final_text))
+
 
 if __name__ == '__main__':
     run_analytics()
