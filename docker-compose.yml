@@ -10,7 +10,12 @@ services:
     ports:
       - "5433:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data # Сохраняем данные, чтобы они не удалились при перезапуске
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   polandrent-app:
     build: .
@@ -18,11 +23,25 @@ services:
     env_file:
       - .env
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     command: >
-      bash -c "alembic upgrade head && 
-               python app/services/scraper.py && 
+      bash -c "alembic upgrade head &&
+               python app/services/scraper.py &&
                python app/services/analytics.py"
+
+  bot:
+    build: .
+    container_name: polandrent_bot
+    env_file:
+      - .env
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    command: >
+      bash -c "alembic upgrade head &&
+               python app/bot/main.py"
 
 volumes:
   postgres_data:
