@@ -1,9 +1,23 @@
 import asyncio
+import random
 import re
+from dataclasses import dataclass
 from typing import List, Dict, Any, Optional, Tuple
 
-import httpx
 from playwright.async_api import async_playwright, Page
+
+@dataclass
+class ApartmentAd:
+    external_id: str
+    city: str
+    price: float
+    rooms: int | None
+    sq_meters: float | None
+    floor: int | None
+    additional_rent: int | None
+    district: str | None
+    url: str
+    title: str
 
 def clean_price_text(raw_price: str) -> float:
         clean_price = raw_price.replace(" ", "").replace("zł", "").replace("donegocjacji", "").replace("\n","").replace(",", ".")
@@ -44,36 +58,19 @@ async def dismiss_otodom_cookies(page) -> None:
     except Exception:
         print("Cookie button not clickable or missing.")
 
-async def send_apartments_to_api(apartments_data: list):
-    async with httpx.AsyncClient() as client:
-        url = "http://127.0.0.1:8080/apartments/"
-        for apt_data in apartments_data:
-            try:
-                response = await client.post(url, json=apt_data)
 
-                if response.status_code in (200,201):
-                    print(f"Successfully added: {apt_data.get('url')}")
+async def parse_apartments_list(page: Page, city: str) -> List[ApartmentAd]:
+    print(f"[{city.upper()}] Parsing apartments list...")
+    try:
+        await page.locator('[data-cy="l-card"]').first.wait_for(state="visible")
+    except Exception:
+        print(f"[{city.upper()}]Apartments list not found, end of the list or captcha")
+        return []
 
-                elif response.status_code in (400,409):
-                    print(f"Missed (already in database): {apt_data.get('url')}")
-
-                elif response.status_code == 422:
-                    print(f"Data Error: {apt_data.get('url')}: {response.text}")
-
-                else:
-                    print(f"Unexpected status code: {response.status_code}: {response.text}")
-
-            except Exception as e:
-                print(f"Unexpected error: {e}")
-                continue
-
-async def parse_apartments_list(page: Page) -> List[Dict[str, Any]]:
-    print("Parsing apartments list...")
-    await page.locator('[data-cy="l-card"]').first.wait_for(state="visible")
     all_cards = await page.locator('[data-cy="l-card"]').all()
     print(f"Listings found on the page: {len(all_cards)}")
 
-    results: List[Dict[str, Any]] = []
+    results: List[ApartmentAd] = []
 
     for i, card in enumerate(all_cards):
         try:
@@ -88,14 +85,20 @@ async def parse_apartments_list(page: Page) -> List[Dict[str, Any]]:
 
             print(f"Parsed: {title_text} | Price: {final_price}")
 
-            results.append({
-                "title": title_text,
-                "price": final_price,
-                "url": url,
-                "city": "Poznan"
-            })
+            results.append(ApartmentAd(
+                external_id=url,
+                city=city,
+                price=final_price,
+                url=url,
+                title=title_text,
+                rooms=None,
+                sq_meters=None,
+                floor=None,
+                additional_rent=None,
+                district=None
+            ))
         except Exception:
-            continue
+            print("Apartment not found")
 
     return results
 
@@ -104,7 +107,7 @@ async def parse_olx_details(page: Page) -> Tuple[Optional[float], Optional[int],
 
     try:
         area_element = page.locator("p").filter(has_text="Powierzchnia:").first
-        await area_element.wait_for(state="visible", timeout=3000)
+        await area_element.wait_for(state="visible", timeout=5000)
         area_text = await area_element.inner_text()
         match = re.search(r'\d+[.,]?\d*', area_text)
         if match:
@@ -235,72 +238,95 @@ async def parse_otodom_details(page: Page) -> Tuple[Optional[float], Optional[in
 
     return sq_meters, rooms, floor, additional_rent, district
 
-async def get_apartment_details(page: Page, url: str) -> Dict[str, Any]:
-    print(f"[Details] Entry inside: {url}")
+async def get_apartment_details(page: Page, apt: ApartmentAd) -> None:
+    print(f"[{apt.city.upper()}] Entry inside: {apt.url}")
     try:
-        await page.goto(url, wait_until="domcontentloaded")
+        await page.goto(apt.url, wait_until="domcontentloaded")
         await page.wait_for_timeout(1500)
 
         sq_meters, rooms, floor, additional_rent, district = None, None, None, None, None
 
-        if "olx.pl" in url:
+        if "olx.pl" in apt.url:
             sq_meters, rooms, floor,additional_rent, district = await parse_olx_details(page)
-        elif "otodom.pl" in url:
+        elif "otodom.pl" in apt.url:
             sq_meters, rooms, floor,additional_rent, district = await parse_otodom_details(page)
 
-        print(f" -> Area: {sq_meters} m2 | Rooms: {rooms} | Floor: {floor}")
+        print(f"[{apt.city.upper()}] -> Area: {sq_meters} m2 | Rooms: {rooms} | Floor: {floor}")
 
-        return {
-            "sq_meters": sq_meters,
-            "rooms": rooms,
-            "floor": floor,
-            "additional_rent": additional_rent,
-            "district": district
-        }
+        apt.sq_meters = sq_meters
+        apt.rooms = rooms
+        apt.floor = floor
+        apt.additional_rent = additional_rent
+        apt.district = district
 
     except Exception as e:
-        print(f"Error:{url}: {e}")
-        return {"sq_meters": None, "rooms": None, "floor": None, "additional_rent": None, "district": None}
+        print(f"[{apt.city.upper()}] Error: {apt.url}: {e}")
 
-async def run_scraper() -> None:
+
+async def scrape_city(browser, city: str) -> List[ApartmentAd]:
+    print(f"Scraping cities: {city.capitalize()}")
+
+    context = await browser.new_context(
+        viewport={'width': 1280, 'height': 800},
+        user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        permissions=[]
+    )
+
+    page = await context.new_page()
+    second_page = await context.new_page()
+    all_parsed_apartments: List[ApartmentAd] = []
+    MAX_PAGES = 1
+
+    for current_page in range(1, MAX_PAGES + 1):
+        print(f"[{city.capitalize()}] Page {current_page} of {MAX_PAGES}")
+        city_url = city.lower()
+
+        if current_page == 1:
+            url = f"https://www.olx.pl/nieruchomosci/mieszkania/wynajem/{city_url}/"
+        else:
+            url = f"https://www.olx.pl/nieruchomosci/mieszkania/wynajem/{city_url}/?page={current_page}"
+
+        await asyncio.sleep(random.uniform(2.0, 4.0))
+        await page.goto(url, wait_until="domcontentloaded")
+
+        if current_page == 1:
+            await dismiss_popups(page)
+
+        page_data = await parse_apartments_list(page, city)
+
+        for apt in page_data:
+            await asyncio.sleep(random.uniform(1.0, 2.5))
+            await get_apartment_details(second_page, apt)
+            all_parsed_apartments.append(apt)
+
+    await context.close()
+    return all_parsed_apartments
+
+
+async def scrape_city_with_semaphore(browser, city: str, semaphore: asyncio.Semaphore) -> List[ApartmentAd]:
+    async with semaphore:
+        return await scrape_city(browser, city)
+
+
+async def run_all_scrapers(cities: List[str]) -> List[ApartmentAd]:
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
-        context = await browser.new_context(
-            viewport={'width': 1280, 'height': 800},
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-            permissions=[]
-        )
 
-        page = await context.new_page()
-        second_page = await context.new_page()
+        semaphore = asyncio.Semaphore(2)
 
-        MAX_PAGES = 5
+        tasks = [scrape_city_with_semaphore(browser, city, semaphore) for city in cities]
+        results = await asyncio.gather(*tasks)
 
-        for current_page in range(1, MAX_PAGES + 1):
-            print(f"Scraping page {current_page} from {MAX_PAGES} pages")
-
-            if current_page == 1:
-                url = "https://www.olx.pl/nieruchomosci/mieszkania/wynajem/poznan/"
-            else:
-                url = f"https://www.olx.pl/nieruchomosci/mieszkania/wynajem/poznan/?page={current_page}"
-
-            await page.goto(url, wait_until="domcontentloaded")
-
-            if current_page == 1:
-                await dismiss_popups(page)
-
-            page_data = await parse_apartments_list(page)
-            print("\n Apartments data:")
-
-            for apt in page_data:
-                details = await get_apartment_details(second_page, apt["url"])
-                apt.update(details)
-
-            await send_apartments_to_api(page_data)
-
-
-        await second_page.close()
         await browser.close()
 
+        all_apartments = []
+        for city_results in results:
+            all_apartments.extend(city_results)
+
+        return all_apartments
+
+
 if __name__ == "__main__":
-    asyncio.run(run_scraper())
+    cities_to_scrape = ["warszawa", "krakow", "wroclaw", "poznan", "gdansk"]
+    results = asyncio.run(run_all_scrapers(cities_to_scrape))
+    print(f"\n Ready! Total count of apartments: {len(results)}")
