@@ -165,14 +165,25 @@ async def cmd_my_subscriptions(message: Message, state: FSMContext, session: Asy
             reply_markup=get_delete_sub_keyboard(sub.id)
         )
 
-@router.callback_query(F.data_startswith("del_sub_"))
+@router.callback_query(F.data.startswith("del_sub_"))
 async def cmd_delete_subscription(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
     sub_id = int(callback.data.split("_")[1])
 
-    delete_query = delete(Subscription).where(Subscription.id == sub_id)
-    await session.execute(delete_query)
+    user_query = select(User).where(User.telegram_id == callback.from_user.id)
+    user_result = await session.execute(user_query)
+    db_user = user_result.scalar_one_or_none()
+    if not db_user:
+        await callback.answer("Error: You are not registered or have no subscriptions yet", show_alert=True)
+        return
+
+    delete_query = delete(Subscription).where(
+        Subscription.id == sub_id,
+        Subscription.user_id == db_user.id,
+    )
+    result = await session.execute(delete_query)
     await session.commit()
-
+    if result.rowcount == 0:
+        await callback.answer("Subscription not found or doesn't belong to you.", show_alert=True)
+        return
     await callback.answer("Subscription successfully deleted!", show_alert=False)
-
     await callback.message.delete()
