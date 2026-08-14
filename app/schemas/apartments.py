@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 class ApartmentsBase(BaseModel):
     url: str
@@ -10,10 +10,10 @@ class ApartmentsBase(BaseModel):
     city: str
     district: Optional[str] = None
 
-    price: float
-    additional_rent: Optional[float] = None
-    sq_meters: Optional[float] = None
-    rooms: Optional[int] = None
+    price: float = Field(gt=0)
+    additional_rent: Optional[float] = Field(default=None, ge=0)
+    sq_meters: Optional[float] = Field(default=None, gt=0)
+    rooms: Optional[int] = Field(default=None, gt=0)
     floor: Optional[int] = None
 
     pets_allowed: Optional[bool] = None
@@ -28,10 +28,10 @@ class ApartmentsUpdate(ApartmentsBase):
     city: Optional[str] = None
     district: Optional[str] = None
 
-    price: Optional[float] = None
-    additional_rent: Optional[float] = None
-    sq_meters: Optional[float] = None
-    rooms: Optional[int] = None
+    price: Optional[float] = Field(default=None,gt=0)
+    additional_rent: Optional[float] = Field(default=None, ge=0)
+    sq_meters: Optional[float] = Field(default=None, gt=0)
+    rooms: Optional[int] = Field(default=None, gt=0)
     floor: Optional[int] = None
 
 class ApartmentsResponse(ApartmentsBase):

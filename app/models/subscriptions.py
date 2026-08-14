@@ -15,8 +15,8 @@ class Subscription(Base):
     price_min: Mapped[float | None] = mapped_column(Float)
     price_max: Mapped[float | None] = mapped_column(Float)
 
-    rooms_min: Mapped[float | None] = mapped_column(Integer)
-    rooms_max: Mapped[float | None] = mapped_column(Integer)
+    rooms_min: Mapped[int | None] = mapped_column(Integer)
+    rooms_max: Mapped[int | None] = mapped_column(Integer)
     sq_meters_min: Mapped[float | None] = mapped_column(Float)
     sq_meters_max: Mapped[float | None] = mapped_column(Float)
 
