@@ -1,11 +1,11 @@
-import os
 from dotenv import load_dotenv
+from pydantic_settings import BaseSettings
 
 load_dotenv()
 
-class Settings:
-    TELEGRAM_BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
-    TELEGRAM_CHAT_ID: str = os.getenv("TELEGRAM_CHAT_ID", "")
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "")
+class Settings(BaseSettings):
+    TELEGRAM_BOT_TOKEN: str
+    TELEGRAM_CHAT_ID: str
+    DATABASE_URL: str
 
 settings = Settings()
