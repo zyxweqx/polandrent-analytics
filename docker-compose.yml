@@ -43,5 +43,21 @@ services:
       bash -c "alembic upgrade head &&
                python app/bot/main.py"
 
+  web:
+    build: .
+    container_name: polandrent_web
+    env_file:
+      - .env
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8001:8000"
+
+    command: >
+      bash -c "alembic upgrade head &&
+              uvicorn app.main:app --host 0.0.0.0 --port 8000"
+
 volumes:
   postgres_data:
