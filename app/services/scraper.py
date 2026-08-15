@@ -4,7 +4,10 @@ import re
 from dataclasses import dataclass
 from typing import List, Dict, Any, Optional, Tuple
 
+import httpx
 from playwright.async_api import async_playwright, Page
+
+API_URL = "http://web:8000/apartments/"
 
 @dataclass
 class ApartmentAd:
@@ -57,7 +60,6 @@ async def dismiss_otodom_cookies(page) -> None:
             await page.wait_for_timeout(500)
     except Exception:
         print("Cookie button not clickable or missing.")
-
 
 async def parse_apartments_list(page: Page, city: str) -> List[ApartmentAd]:
     print(f"[{city.upper()}] Parsing apartments list...")
@@ -262,7 +264,6 @@ async def get_apartment_details(page: Page, apt: ApartmentAd) -> None:
     except Exception as e:
         print(f"[{apt.city.upper()}] Error: {apt.url}: {e}")
 
-
 async def scrape_city(browser, city: str) -> List[ApartmentAd]:
     print(f"Scraping cities: {city.capitalize()}")
 
@@ -302,11 +303,9 @@ async def scrape_city(browser, city: str) -> List[ApartmentAd]:
     await context.close()
     return all_parsed_apartments
 
-
 async def scrape_city_with_semaphore(browser, city: str, semaphore: asyncio.Semaphore) -> List[ApartmentAd]:
     async with semaphore:
         return await scrape_city(browser, city)
-
 
 async def run_all_scrapers(cities: List[str]) -> List[ApartmentAd]:
     async with async_playwright() as p:
@@ -325,8 +324,35 @@ async def run_all_scrapers(cities: List[str]) -> List[ApartmentAd]:
 
         return all_apartments
 
+async def send_apartments_to_api(apartments: List[ApartmentAd]) -> None:
+    async with httpx.AsyncClient() as client:
+        for apt in apartments:
+            payload = {
+                "url": apt.url,
+                "title": apt.title,
+                "city": apt.city,
+                "district": apt.district,
+                "price": apt.price,
+                "additional_rent": apt.additional_rent,
+                "sq_meters": apt.sq_meters,
+                "rooms": apt.rooms,
+                "floor": apt.floor,
+            }
+            try:
+                response = await client.post(API_URL, json=payload)
+                if response.status_code == 200:
+                    print("Success!")
+                elif response.status_code == 422:
+                    print(f"Validation error for {apt.url}: {response.text}")
+                elif response.status_code == 409:
+                    print(f"Already in database: {apt.url}")
+                else:
+                    print("Error!")
+            except Exception as e:
+                print(f"Unexpected error:  {e}")
 
 if __name__ == "__main__":
     cities_to_scrape = ["warszawa", "krakow", "wroclaw", "poznan", "gdansk"]
     results = asyncio.run(run_all_scrapers(cities_to_scrape))
+    asyncio.run(send_apartments_to_api(results))
     print(f"\n Ready! Total count of apartments: {len(results)}")
