@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.models.apartments import Apartment
 from app.schemas.apartments import ApartmentsResponse, ApartmentsCreate, ApartmentsUpdate
-from app.services.matching import find_matches
+from app.services.matching import find_matches, notify_matched_users
 
 router = APIRouter(prefix="/apartments", tags=["apartments"])
 
@@ -41,8 +41,7 @@ async def create_apartment(aps_data: ApartmentsCreate, db: AsyncSession = Depend
         await db.rollback()
         raise HTTPException(status_code=409, detail="Apartment already exists")
     matches = await find_matches(db,new_ap)
-
-    print(f"matches: {len(matches)}")
+    await notify_matched_users(db, matches, new_ap)
 
     return new_ap
 
