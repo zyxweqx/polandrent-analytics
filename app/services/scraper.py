@@ -2,12 +2,20 @@ import asyncio
 import random
 import re
 from dataclasses import dataclass
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Optional, Tuple
 
 import httpx
 from playwright.async_api import async_playwright, Page
 
 API_URL = "http://web:8000/apartments/"
+
+CITY_DISPLAY_NAMES = {
+    "poznan": "Poznań",
+    "warszawa": "Warszawa",
+    "krakow": "Kraków",
+    "wroclaw": "Wrocław",
+    "gdansk": "Gdańsk"
+}
 
 @dataclass
 class ApartmentAd:
@@ -104,7 +112,7 @@ async def parse_apartments_list(page: Page, city: str) -> List[ApartmentAd]:
 
     return results
 
-async def parse_olx_details(page: Page) -> Tuple[Optional[float], Optional[int], Optional[int], Optional[float], Optional[str]]:
+async def parse_olx_details(page: Page, city: str) -> Tuple[Optional[float], Optional[int], Optional[int], Optional[float], Optional[str]]:
     sq_meters, rooms, floor,additional_rent,district = None, None, None, None, None
 
     try:
@@ -160,7 +168,7 @@ async def parse_olx_details(page: Page) -> Tuple[Optional[float], Optional[int],
         print ("Not found rent on this page")
 
     try:
-        loc_element = page.locator("p").filter(has_text="Poznań").first
+        loc_element = page.locator("p").filter(has_text=CITY_DISPLAY_NAMES[city]).first
         await loc_element.wait_for(state="visible", timeout=2000)
         loc_text = await loc_element.inner_text()
         if "," in loc_text:
@@ -172,7 +180,7 @@ async def parse_olx_details(page: Page) -> Tuple[Optional[float], Optional[int],
 
     return sq_meters, rooms, floor, additional_rent, district
 
-async def parse_otodom_details(page: Page) -> Tuple[Optional[float], Optional[int], Optional[int], Optional[float], Optional[str]]:
+async def parse_otodom_details(page: Page, city: str) -> Tuple[Optional[float], Optional[int], Optional[int], Optional[float], Optional[str]]:
     await dismiss_otodom_cookies(page)
     sq_meters, rooms, floor,additional_rent, district = None, None, None, None, None
 
@@ -232,7 +240,7 @@ async def parse_otodom_details(page: Page) -> Tuple[Optional[float], Optional[in
         await loc_element.wait_for(state="visible", timeout=2000)
         loc_text = await loc_element.inner_text()
 
-        if "Poznań" in loc_text:
+        if CITY_DISPLAY_NAMES[city] in loc_text:
             parts = loc_text.split(",")
             district = parts[-1].strip()
     except Exception:
@@ -249,9 +257,9 @@ async def get_apartment_details(page: Page, apt: ApartmentAd) -> None:
         sq_meters, rooms, floor, additional_rent, district = None, None, None, None, None
 
         if "olx.pl" in apt.url:
-            sq_meters, rooms, floor,additional_rent, district = await parse_olx_details(page)
+            sq_meters, rooms, floor,additional_rent, district = await parse_olx_details(page, apt.city)
         elif "otodom.pl" in apt.url:
-            sq_meters, rooms, floor,additional_rent, district = await parse_otodom_details(page)
+            sq_meters, rooms, floor,additional_rent, district = await parse_otodom_details(page,apt.city)
 
         print(f"[{apt.city.upper()}] -> Area: {sq_meters} m2 | Rooms: {rooms} | Floor: {floor}")
 
@@ -276,7 +284,7 @@ async def scrape_city(browser, city: str) -> List[ApartmentAd]:
     page = await context.new_page()
     second_page = await context.new_page()
     all_parsed_apartments: List[ApartmentAd] = []
-    MAX_PAGES = 1
+    MAX_PAGES = 5
 
     for current_page in range(1, MAX_PAGES + 1):
         print(f"[{city.capitalize()}] Page {current_page} of {MAX_PAGES}")
