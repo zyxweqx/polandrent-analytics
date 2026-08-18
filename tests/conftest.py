@@ -7,9 +7,6 @@ from app.main import app
 from app.core.database import get_db
 from app.models.base import Base
 
-from app.models import apartments, subscriptions, users
-
-
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
 test_engine = create_async_engine(
