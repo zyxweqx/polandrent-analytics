@@ -6,41 +6,29 @@ from app.services.notifier import send_tg_message
 
 
 async def find_matches(session,apartment):
-    stmt = select(Subscription).where(
+    conditions = [
         Subscription.city == apartment.city,
         Subscription.is_active == True,
-        or_(
-            Subscription.price_min.is_(None),
-            Subscription.price_min <= apartment.price,
-        ),
-        or_(
-            Subscription.price_max.is_(None),
-            Subscription.price_max >= apartment.price,
-        ),
-        or_(
-            Subscription.rooms_min.is_(None),
-            Subscription.rooms_min <= apartment.rooms,
-        ),
-        or_(
-            Subscription.rooms_max.is_(None),
-            Subscription.rooms_max >= apartment.rooms,
-        ),
-        or_(
-            Subscription.sq_meters_min.is_(None),
-            Subscription.sq_meters_min <= apartment.sq_meters,
-        ),
-        or_(
-            Subscription.sq_meters_max.is_(None),
-            Subscription.sq_meters_max >= apartment.sq_meters,
-        ),
-        or_(
-            Subscription.pets_allowed.is_(None),
-            Subscription.pets_allowed == apartment.pets_allowed,
-        ),
-    )
+        or_(Subscription.price_min.is_(None), Subscription.price_min <= apartment.price),
+        or_(Subscription.price_max.is_(None), Subscription.price_max >= apartment.price),
+        or_(Subscription.pets_allowed.is_(None), Subscription.pets_allowed == apartment.pets_allowed),
+    ]
+    if apartment.rooms is not None:
+        conditions.append(or_(Subscription.rooms_min.is_(None), Subscription.rooms_min <= apartment.rooms))
+        conditions.append(or_(Subscription.rooms_max.is_(None), Subscription.rooms_max >= apartment.rooms))
+    else:
+        conditions.append(Subscription.rooms_min.is_(None))
+        conditions.append(Subscription.rooms_max.is_(None))
+    if apartment.sq_meters is not None:
+        conditions.append(or_(Subscription.sq_meters_min.is_(None), Subscription.sq_meters_min <= apartment.sq_meters))
+        conditions.append(or_(Subscription.sq_meters_max.is_(None), Subscription.sq_meters_max >= apartment.sq_meters))
+    else:
+        conditions.append(Subscription.sq_meters_min.is_(None))
+        conditions.append(Subscription.sq_meters_max.is_(None))
+
+    stmt = select(Subscription).where(*conditions)
     result = await session.execute(stmt)
-    matches = result.scalars().all()
-    return matches
+    return result.scalars().all()
 
 async def notify_matched_users(session, matches, apartment):
     for subscription in matches:
