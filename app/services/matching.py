@@ -4,7 +4,6 @@ from app.models.subscriptions import Subscription
 from app.models.users import User
 from app.services.notifier import send_tg_message
 
-
 async def find_matches(session,apartment):
     conditions = [
         Subscription.city == apartment.city,
