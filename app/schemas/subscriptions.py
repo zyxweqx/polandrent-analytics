@@ -1,6 +1,6 @@
+
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from typing import Optional
 
 class RangeValidation:
 
@@ -21,20 +21,20 @@ class RangeValidation:
 
 class SubscriptionBase(RangeValidation, BaseModel):
     city: str
-    district: Optional[str] = None
+    district: str | None = None
 
-    price_min: Optional[float] = Field(default=None,gt=0)
-    price_max: Optional[float] = Field(default=None,gt=0)
+    price_min: float | None = Field(default=None,gt=0)
+    price_max: float | None = Field(default=None,gt=0)
 
-    rooms_min: Optional[int] = Field(default=None,gt=0)
-    rooms_max: Optional[int] = Field(default=None,gt=0)
+    rooms_min: int | None = Field(default=None,gt=0)
+    rooms_max: int | None = Field(default=None,gt=0)
 
-    sq_meters_min: Optional[float] = Field(default=None,gt=0)
-    sq_meters_max: Optional[float] = Field(default=None,gt=0)
+    sq_meters_min: float | None = Field(default=None,gt=0)
+    sq_meters_max: float | None = Field(default=None,gt=0)
 
-    pets_allowed: Optional[bool] = None
-    is_owner: Optional[bool] = None
-    is_active: Optional[bool] = None
+    pets_allowed: bool | None = None
+    is_owner: bool | None = None
+    is_active: bool | None = None
 
 class SubscriptionCreate(SubscriptionBase):
     user_id: int
@@ -46,14 +46,14 @@ class SubscriptionResponse(SubscriptionBase):
     model_config = ConfigDict(from_attributes=True)
 
 class SubscriptionUpdate(RangeValidation, BaseModel):
-    city: Optional[str] = None
-    district: Optional[str] = None
-    price_min: Optional[float] = Field(default=None,gt=0)
-    price_max: Optional[float] = Field(default=None,gt=0)
-    rooms_min: Optional[int] = Field(default=None,gt=0)
-    rooms_max: Optional[int] = Field(default=None,gt=0)
-    sq_meters_min: Optional[float] = Field(default=None,gt=0)
-    sq_meters_max: Optional[float] = Field(default=None,gt=0)
-    pets_allowed: Optional[bool] = None
-    is_owner: Optional[bool] = None
-    is_active: Optional[bool] = None
+    city: str | None = None
+    district: str | None = None
+    price_min: float | None = Field(default=None,gt=0)
+    price_max: float | None = Field(default=None,gt=0)
+    rooms_min: int | None = Field(default=None,gt=0)
+    rooms_max: int | None = Field(default=None,gt=0)
+    sq_meters_min: float | None = Field(default=None,gt=0)
+    sq_meters_max: float | None = Field(default=None,gt=0)
+    pets_allowed: bool | None = None
+    is_owner: bool | None = None
+    is_active: bool | None = None

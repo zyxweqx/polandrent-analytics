@@ -1,6 +1,4 @@
-from fastapi import HTTPException
-
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,7 +6,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.security import verify_api_key
 from app.models.apartments import Apartment
-from app.schemas.apartments import ApartmentsResponse, ApartmentsCreate, ApartmentsUpdate
+from app.schemas.apartments import (
+    ApartmentsCreate,
+    ApartmentsResponse,
+    ApartmentsUpdate,
+)
 from app.services.matching import find_matches, notify_matched_users
 
 router = APIRouter(prefix="/apartments", tags=["apartments"],dependencies=[Depends(verify_api_key)])

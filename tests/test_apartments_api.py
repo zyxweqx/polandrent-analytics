@@ -11,7 +11,7 @@ async def test_create_apartment_api(client):
     assert response.json()["city"] == "Poznan"
 
 async def test_dublicate_url_api(client):
-    response = await client.post('/apartments/', json={
+    await client.post('/apartments/', json={
         "url": "https://example.com/apt2",
         "title": "test apartment1",
         "city": "Poznan",

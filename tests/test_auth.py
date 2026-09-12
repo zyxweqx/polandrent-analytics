@@ -2,6 +2,7 @@ from httpx import ASGITransport, AsyncClient
 
 from app.main import app
 
+
 async def test_missing_api_key_returns_401():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as unauthenticated_client:

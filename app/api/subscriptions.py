@@ -1,4 +1,3 @@
-from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
@@ -6,9 +5,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import verify_api_key
-from app.models.users import User
 from app.models.subscriptions import Subscription
-from app.schemas.subscriptions import SubscriptionResponse, SubscriptionCreate, SubscriptionUpdate
+from app.models.users import User
+from app.schemas.subscriptions import (
+    SubscriptionCreate,
+    SubscriptionResponse,
+    SubscriptionUpdate,
+)
 
 router = APIRouter(prefix="/subscriptions", tags=["subscriptions"], dependencies=[Depends(verify_api_key)])
 
@@ -28,7 +31,7 @@ async def create_subscription(sub_in: SubscriptionCreate, db: AsyncSession = Dep
 
     return new_sub
 
-@router.get("/user/{user_id}", response_model=List[SubscriptionResponse])
+@router.get("/user/{user_id}", response_model=list[SubscriptionResponse])
 async def get_user_subscriptions(user_id: int, db: AsyncSession = Depends(get_db)):
     query = select(Subscription).where(Subscription.user_id == user_id)
     result = await db.execute(query)

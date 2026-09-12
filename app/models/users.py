@@ -1,8 +1,9 @@
 
-from sqlalchemy import String, Float, Integer, Boolean, DateTime, func, Column, BigInteger
-from sqlalchemy.orm import Mapped,mapped_column
+from sqlalchemy import BigInteger, String
+from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
+
 
 class User(Base):
     __tablename__ = "users"

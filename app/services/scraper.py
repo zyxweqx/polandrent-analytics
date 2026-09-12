@@ -2,10 +2,9 @@ import asyncio
 import random
 import re
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
 
 import httpx
-from playwright.async_api import async_playwright, Page
+from playwright.async_api import Page, async_playwright
 
 from app.core.config import settings
 
@@ -71,7 +70,7 @@ async def dismiss_otodom_cookies(page) -> None:
     except Exception:
         print("Cookie button not clickable or missing.")
 
-async def parse_apartments_list(page: Page, city: str) -> List[ApartmentAd]:
+async def parse_apartments_list(page: Page, city: str) -> list[ApartmentAd]:
     print(f"[{city.upper()}] Parsing apartments list...")
     try:
         await page.locator('[data-cy="l-card"]').first.wait_for(state="visible")
@@ -82,7 +81,7 @@ async def parse_apartments_list(page: Page, city: str) -> List[ApartmentAd]:
     all_cards = await page.locator('[data-cy="l-card"]').all()
     print(f"Listings found on the page: {len(all_cards)}")
 
-    results: List[ApartmentAd] = []
+    results: list[ApartmentAd] = []
 
     for i, card in enumerate(all_cards):
         try:
@@ -114,7 +113,7 @@ async def parse_apartments_list(page: Page, city: str) -> List[ApartmentAd]:
 
     return results
 
-async def parse_olx_details(page: Page, city: str) -> Tuple[Optional[float], Optional[int], Optional[int], Optional[float], Optional[str]]:
+async def parse_olx_details(page: Page, city: str) -> tuple[float | None, int | None, int | None, float | None, str | None]:
     sq_meters, rooms, floor,additional_rent,district = None, None, None, None, None
 
     try:
@@ -182,7 +181,7 @@ async def parse_olx_details(page: Page, city: str) -> Tuple[Optional[float], Opt
 
     return sq_meters, rooms, floor, additional_rent, district
 
-async def parse_otodom_details(page: Page, city: str) -> Tuple[Optional[float], Optional[int], Optional[int], Optional[float], Optional[str]]:
+async def parse_otodom_details(page: Page, city: str) -> tuple[float | None, int | None, int | None, float | None, str | None]:
     await dismiss_otodom_cookies(page)
     sq_meters, rooms, floor,additional_rent, district = None, None, None, None, None
 
@@ -274,7 +273,7 @@ async def get_apartment_details(page: Page, apt: ApartmentAd) -> None:
     except Exception as e:
         print(f"[{apt.city.upper()}] Error: {apt.url}: {e}")
 
-async def scrape_city(browser, city: str) -> List[ApartmentAd]:
+async def scrape_city(browser, city: str) -> list[ApartmentAd]:
     print(f"Scraping cities: {city.capitalize()}")
 
     context = await browser.new_context(
@@ -285,7 +284,7 @@ async def scrape_city(browser, city: str) -> List[ApartmentAd]:
 
     page = await context.new_page()
     second_page = await context.new_page()
-    all_parsed_apartments: List[ApartmentAd] = []
+    all_parsed_apartments: list[ApartmentAd] = []
     MAX_PAGES = 5
 
     for current_page in range(1, MAX_PAGES + 1):
@@ -313,11 +312,11 @@ async def scrape_city(browser, city: str) -> List[ApartmentAd]:
     await context.close()
     return all_parsed_apartments
 
-async def scrape_city_with_semaphore(browser, city: str, semaphore: asyncio.Semaphore) -> List[ApartmentAd]:
+async def scrape_city_with_semaphore(browser, city: str, semaphore: asyncio.Semaphore) -> list[ApartmentAd]:
     async with semaphore:
         return await scrape_city(browser, city)
 
-async def run_all_scrapers(cities: List[str]) -> List[ApartmentAd]:
+async def run_all_scrapers(cities: list[str]) -> list[ApartmentAd]:
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
 
@@ -334,7 +333,7 @@ async def run_all_scrapers(cities: List[str]) -> List[ApartmentAd]:
 
         return all_apartments
 
-async def send_apartments_to_api(apartments: List[ApartmentAd]) -> None:
+async def send_apartments_to_api(apartments: list[ApartmentAd]) -> None:
     async with httpx.AsyncClient(headers={"X-API-KEY": settings.API_KEY}) as client:
         for apt in apartments:
             payload = {

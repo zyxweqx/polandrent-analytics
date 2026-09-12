@@ -1,7 +1,7 @@
 import datetime
 
-from sqlalchemy import String, Float, Integer, DateTime, func, Boolean
-from sqlalchemy.orm import Mapped,mapped_column
+from sqlalchemy import Boolean, DateTime, Float, Integer, String, func
+from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
 

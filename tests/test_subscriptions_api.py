@@ -20,8 +20,8 @@ async def test_price_subscriptions(client):
 async def test_subscriptions_list(client):
     user_response = await client.post('/user/', json={"telegram_id": 5, "username": "test5"})
     user_id = user_response.json()['id']
-    first_sub = await client.post('/subscriptions/', json={"user_id": user_id, "city": "Poznan"})
-    second_sub = await client.post('/subscriptions/', json={"user_id": user_id, "city": "Warszawa"})
+    await client.post('/subscriptions/', json={"user_id": user_id, "city": "Poznan"})
+    await client.post('/subscriptions/', json={"user_id": user_id, "city": "Warszawa"})
     get_response = await client.get(f'/subscriptions/user/{user_id}')
     assert get_response.status_code == 200
     assert len(get_response.json()) == 2

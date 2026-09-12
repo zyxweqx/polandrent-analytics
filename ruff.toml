@@ -1,0 +1,4 @@
+[lint]
+ignore = ["B008"]
+[lint.per-file-ignores]
+"app/services/scraper.py" = ["BLE001"]

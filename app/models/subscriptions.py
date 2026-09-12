@@ -1,7 +1,9 @@
-from sqlalchemy import String, Float, Integer, Boolean, ForeignKey
-from sqlalchemy.orm import Mapped,mapped_column
+from sqlalchemy import Boolean, Float, ForeignKey, Integer, String
+from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
+
+
 class Subscription(Base):
     __tablename__ = 'subscriptions'
 

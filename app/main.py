@@ -1,7 +1,9 @@
 from fastapi import FastAPI
-from app.api.user import router as user_router
-from app.api.subscriptions import router as subscriptions_router
+
 from app.api.apartments import router as apartments_router
+from app.api.subscriptions import router as subscriptions_router
+from app.api.user import router as user_router
+
 app = FastAPI(
     title="PolandRent Analytics"
 )

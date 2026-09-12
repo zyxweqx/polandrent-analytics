@@ -10,9 +10,8 @@ from aiogram.types import BotCommand
 from dotenv import load_dotenv
 
 from app.bot.auth.middlewares import DbSessionMiddleware
+from app.bot.handlers import base, subs
 from app.core.database import async_session_maker
-from app.bot.handlers import base
-from app.bot.handlers import subs
 
 load_dotenv()
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")

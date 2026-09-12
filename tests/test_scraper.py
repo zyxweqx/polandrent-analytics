@@ -1,4 +1,5 @@
 import pytest
+
 from app.services.scraper import clean_price_text
 
 

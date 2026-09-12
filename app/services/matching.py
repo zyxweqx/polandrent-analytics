@@ -1,8 +1,9 @@
-from sqlalchemy import select, or_
+from sqlalchemy import or_, select
 
 from app.models.subscriptions import Subscription
 from app.models.users import User
 from app.services.notifier import send_tg_message
+
 
 async def find_matches(session,apartment):
     conditions = [

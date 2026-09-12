@@ -1,10 +1,10 @@
-from typing import Optional
 
 from pydantic import BaseModel, ConfigDict
 
+
 class UserBase(BaseModel):
     telegram_id: int
-    username: Optional[str] = None
+    username: str | None = None
 
 class UserCreate(UserBase):
     pass
