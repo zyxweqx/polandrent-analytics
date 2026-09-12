@@ -7,5 +7,6 @@ class Settings(BaseSettings):
     TELEGRAM_BOT_TOKEN: str
     TELEGRAM_CHAT_ID: str
     DATABASE_URL: str
+    API_KEY: str
 
 settings = Settings()

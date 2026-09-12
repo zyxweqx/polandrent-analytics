@@ -5,11 +5,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.security import verify_api_key
 from app.models.users import User
 from app.models.subscriptions import Subscription
 from app.schemas.subscriptions import SubscriptionResponse, SubscriptionCreate, SubscriptionUpdate
 
-router = APIRouter(prefix="/subscriptions", tags=["subscriptions"])
+router = APIRouter(prefix="/subscriptions", tags=["subscriptions"], dependencies=[Depends(verify_api_key)])
 
 @router.post("/", response_model=SubscriptionResponse)
 async def create_subscription(sub_in: SubscriptionCreate, db: AsyncSession = Depends(get_db)):

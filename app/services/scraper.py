@@ -7,6 +7,8 @@ from typing import List, Optional, Tuple
 import httpx
 from playwright.async_api import async_playwright, Page
 
+from app.core.config import settings
+
 API_URL = "http://web:8000/apartments/"
 
 CITY_DISPLAY_NAMES = {
@@ -333,7 +335,7 @@ async def run_all_scrapers(cities: List[str]) -> List[ApartmentAd]:
         return all_apartments
 
 async def send_apartments_to_api(apartments: List[ApartmentAd]) -> None:
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(headers={"X-API-KEY": settings.API_KEY}) as client:
         for apt in apartments:
             payload = {
                 "url": apt.url,

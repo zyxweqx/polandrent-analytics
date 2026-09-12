@@ -3,10 +3,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.security import verify_api_key
 from app.models.users import User
 from app.schemas.users import UserCreate
 
-router = APIRouter(prefix="/user", tags=["Users"])
+router = APIRouter(prefix="/user", tags=["Users"], dependencies=[Depends(verify_api_key)])
 
 @router.post("/")
 async def create_user(user_in: UserCreate, db: AsyncSession = Depends(get_db)):

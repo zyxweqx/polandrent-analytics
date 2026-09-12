@@ -6,11 +6,12 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.security import verify_api_key
 from app.models.apartments import Apartment
 from app.schemas.apartments import ApartmentsResponse, ApartmentsCreate, ApartmentsUpdate
 from app.services.matching import find_matches, notify_matched_users
 
-router = APIRouter(prefix="/apartments", tags=["apartments"])
+router = APIRouter(prefix="/apartments", tags=["apartments"],dependencies=[Depends(verify_api_key)])
 
 @router.get("/{aps_id}", response_model=ApartmentsResponse)
 async def get_apartment(aps_id: int, db: AsyncSession = Depends(get_db)):

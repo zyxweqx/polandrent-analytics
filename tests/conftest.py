@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.main import app
+from app.core.config import settings
 from app.core.database import get_db
 from app.models.base import Base
 
@@ -37,7 +38,11 @@ async def _setup_database():
 @pytest_asyncio.fixture
 async def client():
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+    async with AsyncClient(
+        transport=transport,
+        base_url="http://test",
+        headers={"X-API-KEY": settings.API_KEY},
+    ) as ac:
         yield ac
 
 
