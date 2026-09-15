@@ -228,7 +228,7 @@ async def parse_otodom_details(page: Page, city: str) -> tuple[float | None, int
         print(f"Not found floors on this page {e}")
 
     try:
-        rent_element = page.locator('div:has-text("Czynsz") + div').first
+        rent_element = page.locator('div:text-is("Czynsz:") + div').first
         await rent_element.wait_for(state="visible", timeout=2000)
         rent_text = await rent_element.inner_text()
         clean_rent_text = rent_text.replace(" ", "").replace(" ", "")
@@ -244,7 +244,8 @@ async def parse_otodom_details(page: Page, city: str) -> tuple[float | None, int
 
         if CITY_DISPLAY_NAMES[city] in loc_text:
             parts = loc_text.split(",")
-            district = parts[-1].strip()
+            if len(parts) > 1:
+                district = parts[1].strip()
     except Exception:
         print("Not found district on this page")
 
