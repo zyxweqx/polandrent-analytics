@@ -1,5 +1,8 @@
+import os
+
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import NullPool
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
@@ -8,16 +11,18 @@ from app.core.database import get_db
 from app.main import app
 from app.models.base import Base
 
-TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
+TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL","sqlite+aiosqlite:///:memory:")
+if TEST_DATABASE_URL.startswith("sqlite"):
+    test_engine = create_async_engine(
+        TEST_DATABASE_URL,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+else:
+    test_engine = create_async_engine(TEST_DATABASE_URL, poolclass=NullPool)
 
-test_engine = create_async_engine(
-    TEST_DATABASE_URL,
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
-)
+
 TestSessionLocal = async_sessionmaker(test_engine, expire_on_commit=False)
-
-
 async def _override_get_db():
     async with TestSessionLocal() as session:
         yield session
