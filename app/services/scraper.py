@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 import httpx
 from playwright.async_api import Page, async_playwright
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 from app.core.config import settings
 
@@ -332,6 +333,9 @@ async def run_all_scrapers(cities: list[str]) -> list[ApartmentAd]:
             all_apartments.extend(city_results)
 
         return all_apartments
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10))
+async def _post_apartment(client: httpx.AsyncClient, payload: dict) -> httpx.Response:
+    return await client.post(API_URL, json=payload)
 
 async def send_apartments_to_api(apartments: list[ApartmentAd]) -> None:
     async with httpx.AsyncClient(headers={"X-API-KEY": settings.API_KEY}) as client:
@@ -348,7 +352,7 @@ async def send_apartments_to_api(apartments: list[ApartmentAd]) -> None:
                 "floor": apt.floor,
             }
             try:
-                response = await client.post(API_URL, json=payload)
+                response = await _post_apartment(client, payload)
                 if response.status_code == 200:
                     print("Success!")
                 elif response.status_code == 422:
