@@ -1,4 +1,5 @@
 [lint]
+extend-select = ["E712"]
 ignore = ["B008"]
 [lint.per-file-ignores]
 "app/services/scraper.py" = ["BLE001"]

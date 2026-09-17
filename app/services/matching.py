@@ -8,7 +8,7 @@ from app.services.notifier import send_tg_message
 async def find_matches(session,apartment):
     conditions = [
         Subscription.city == apartment.city,
-        Subscription.is_active == True,
+        Subscription.is_active,
         or_(Subscription.price_min.is_(None), Subscription.price_min <= apartment.price),
         or_(Subscription.price_max.is_(None), Subscription.price_max >= apartment.price),
         or_(Subscription.pets_allowed.is_(None), Subscription.pets_allowed == apartment.pets_allowed),

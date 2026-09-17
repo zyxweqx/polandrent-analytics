@@ -19,7 +19,10 @@ jobs:
 
       - name: Install dependencies
         run: pip install -r requirements.txt
-
+      - name: Lint with ruff
+        run: |
+          pip install ruff==0.16.7
+          ruff check .
       - name: Run tests
         env:
           TELEGRAM_BOT_TOKEN: "dummy-token"
