@@ -8,5 +8,6 @@ class Settings(BaseSettings):
     TELEGRAM_CHAT_ID: str
     DATABASE_URL: str
     API_KEY: str
+    API_URL: str = "http://web:8000/apartments/"
 
 settings = Settings()

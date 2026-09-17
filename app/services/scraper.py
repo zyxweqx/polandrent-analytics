@@ -9,8 +9,6 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 
 from app.core.config import settings
 
-API_URL = "http://web:8000/apartments/"
-
 CITY_DISPLAY_NAMES = {
     "poznan": "Poznań",
     "warszawa": "Warszawa",
@@ -336,7 +334,7 @@ async def run_all_scrapers(cities: list[str]) -> list[ApartmentAd]:
         return all_apartments
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10))
 async def _post_apartment(client: httpx.AsyncClient, payload: dict) -> httpx.Response:
-    return await client.post(API_URL, json=payload)
+    return await client.post(settings.API_URL, json=payload)
 
 async def send_apartments_to_api(apartments: list[ApartmentAd]) -> None:
     async with httpx.AsyncClient(headers={"X-API-KEY": settings.API_KEY}) as client:
