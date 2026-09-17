@@ -148,5 +148,6 @@ badge above).
 * The scraper runs on demand (`docker-compose up polandrent-app`), not on a
   schedule — trigger it manually or via an external scheduler (cron / Task
   Scheduler) if you want recurring runs.
-* The API has no authentication — anyone with access to it can create,
-  update, or delete any apartment/subscription/user.
+* The API uses a single shared API key (`X-API-Key` header) rather than
+  per-user authentication — anyone holding that key can create, update, or
+  delete any apartment/subscription/user.
