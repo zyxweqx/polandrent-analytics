@@ -31,10 +31,12 @@ async def find_matches(session,apartment):
     return result.scalars().all()
 
 async def notify_matched_users(session, matches, apartment):
+    user_ids = [subscription.user_id for subscription in matches]
+    user_query = select(User).where(User.id.in_(user_ids))
+    user_result = await session.execute(user_query)
+    users_by_id = {user.id: user for user in user_result.scalars().all()}
     for subscription in matches:
-        user_query = select(User).where(User.id == subscription.user_id)
-        user_result = await session.execute(user_query)
-        user = user_result.scalars().one_or_none()
+        user = users_by_id.get(subscription.user_id)
         if not user:
             continue
         text = (
