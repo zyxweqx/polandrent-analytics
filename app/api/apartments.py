@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,7 +33,7 @@ async def get_all_apartments(db: AsyncSession = Depends(get_db)):
     return aps
 
 @router.post("/", response_model=ApartmentsResponse)
-async def create_apartment(aps_data: ApartmentsCreate, db: AsyncSession = Depends(get_db)):
+async def create_apartment(aps_data: ApartmentsCreate, background_tasks: BackgroundTasks, db: AsyncSession = Depends(get_db)):
     new_ap = Apartment(**aps_data.model_dump())
     db.add(new_ap)
 
@@ -44,7 +44,7 @@ async def create_apartment(aps_data: ApartmentsCreate, db: AsyncSession = Depend
         await db.rollback()
         raise HTTPException(status_code=409, detail="Apartment already exists")
     matches = await find_matches(db,new_ap)
-    await notify_matched_users(db, matches, new_ap)
+    background_tasks.add_task(notify_matched_users, db, matches,new_ap, )
 
     return new_ap
 
