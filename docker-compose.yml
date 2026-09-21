@@ -24,10 +24,9 @@ services:
       db:
         condition: service_healthy
       web:
-        condition: service_started
+        condition: service_healthy
     command: >
-      bash -c "alembic upgrade head &&
-               python app/services/scraper.py &&
+      bash -c "python app/services/scraper.py &&
                python app/services/analytics.py"
 
   bot:
@@ -37,11 +36,12 @@ services:
       - .env
     restart: unless-stopped
     depends_on:
+      web:
+        condition: service_healthy
       db:
         condition: service_healthy
     command: >
-      bash -c "alembic upgrade head &&
-               python app/bot/main.py"
+      bash -c "python app/bot/main.py"
 
   web:
     build: .
@@ -54,7 +54,11 @@ services:
         condition: service_healthy
     ports:
       - "8001:8000"
-
+    healthcheck:
+      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/')" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
     command: >
       bash -c "alembic upgrade head &&
               uvicorn app.main:app --host 0.0.0.0 --port 8000"
