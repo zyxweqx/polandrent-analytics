@@ -16,15 +16,20 @@ daily digest of the cheapest listings per m².
 ![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white)
 ![pytest](https://img.shields.io/badge/pytest-0A9EDC?logo=pytest&logoColor=white)
 
+![Bot demo: creating a subscription and receiving an instant match notification](docs/bot-demo.gif)
+
 ## Features
 
 * Asynchronous web scraping of OLX/Otodom (Playwright, headless Chromium) across 5 cities in parallel.
-* A FastAPI REST API for apartments, subscriptions, and users, backed by PostgreSQL via async SQLAlchemy 2.0 and Alembic migrations.
+* A FastAPI REST API for apartments, subscriptions, and users, backed by PostgreSQL via async SQLAlchemy 2.0 and Alembic migrations, secured with a shared API-key header.
 * A Telegram bot (aiogram 3) for registering and managing subscriptions through an FSM-driven conversation.
-* Real-time matching: every newly scraped apartment is checked against all active subscriptions, and matched users get a Telegram message immediately.
+* Real-time matching: every newly scraped apartment is checked against all active subscriptions; matching and Telegram notifications run as a FastAPI background task so the scraper's request isn't blocked on message delivery.
+* Automatic retries with exponential backoff (tenacity) on the scraper's API calls and on Telegram delivery, so a single transient network failure doesn't silently drop a listing or a notification.
 * A daily analytics digest (pandas) with average price per district and the top 5 cheapest listings per m².
-* Fully containerized with Docker Compose — Postgres, the API, the bot, and the scrape+analytics pipeline each run as their own service.
-* A pytest test suite (API + service-level tests, in-memory SQLite, no Docker required) running automatically on every push via GitHub Actions.
+* A typer-based CLI (`app/cli.py`) for running the scraper and the analytics digest by hand.
+* Fully containerized with Docker Compose — Postgres, the API, the bot, and the scrape+analytics pipeline each run as their own service; only the API runs migrations, the others wait for it to become healthy first.
+* A pytest test suite (API/service-level tests plus parser tests against saved HTML fixtures) running automatically on every push via GitHub Actions, against both an in-memory SQLite database and a real Postgres service container.
+* ruff + pre-commit for linting, run both locally (git hook) and in CI.
 
 ## Architecture
 
@@ -66,7 +71,10 @@ logic in one place regardless of who created the apartment.
 * SQLAlchemy 2.0 (async) + Alembic + PostgreSQL
 * aiogram 3 (Telegram bot, FSM)
 * Playwright (scraping) + pandas (analytics)
-* pytest / pytest-asyncio / httpx (tests, in-memory SQLite)
+* tenacity (retry with exponential backoff)
+* typer (CLI)
+* pytest / pytest-asyncio / httpx (tests, in-memory SQLite and Postgres)
+* ruff + pre-commit (linting)
 * Docker & Docker Compose
 * GitHub Actions (CI)
 
@@ -76,9 +84,10 @@ logic in one place regardless of who created the apartment.
 polandrent_analytics/
 ├── app/
 │   ├── main.py                # FastAPI entrypoint
+│   ├── cli.py                 # typer CLI (scrape / analytics commands)
 │   ├── api/                   # /user, /subscriptions, /apartments routers
 │   ├── bot/                   # aiogram bot: handlers, keyboards, FSM states
-│   ├── core/                  # settings (pydantic-settings) and the DB engine
+│   ├── core/                  # settings, DB engine, API-key verification
 │   ├── models/                # SQLAlchemy models
 │   ├── schemas/                # Pydantic request/response schemas
 │   └── services/
@@ -87,10 +96,11 @@ polandrent_analytics/
 │       ├── matching.py         # find_matches + notify_matched_users
 │       └── notifier.py         # thin Telegram send_message wrapper
 ├── migrations/                 # Alembic
-├── tests/                      # pytest suite (API + service-level)
+├── tests/                      # pytest suite (API + service-level + parser fixtures)
 ├── .github/workflows/ci.yml
 ├── docker-compose.yml
 ├── Dockerfile
+├── ruff.toml
 └── requirements.txt
 ```
 
@@ -130,18 +140,38 @@ Message your bot on Telegram, `/start` to register, then `/subscribe` (or
 the "➕ New Subscription" button) to set up an alert for a city, price range,
 room count, and more.
 
+### Using the CLI
+
+A typer-based CLI wraps the scraper and analytics jobs, for running them
+outside Docker Compose (e.g. locally, or from an external scheduler):
+
+```bash
+python -m app.cli scrape                  # scrape all 5 cities
+python -m app.cli scrape --city warszawa  # scrape a single city
+python -m app.cli analytics               # run the daily digest
+```
+
 ## Testing
 
-Tests use an in-memory SQLite database and an in-process ASGI client — no
-Docker or real Postgres needed:
+Most tests use an in-memory SQLite database and an in-process ASGI client —
+no Docker or real Postgres needed:
 
 ```bash
 pip install -r requirements.txt
 pytest -v
 ```
 
+Parser tests (`tests/test_parser_fixtures.py`) additionally need Playwright's
+browser binaries:
+
+```bash
+playwright install chromium
+```
+
 The same suite runs automatically on every push via GitHub Actions (see the
-badge above).
+badge above) — once against SQLite, and once against a real Postgres service
+container, since SQLite doesn't enforce foreign keys or catch
+Postgres-specific connection-pooling issues by default.
 
 ## Known limitations
 
@@ -151,3 +181,11 @@ badge above).
 * The API uses a single shared API key (`X-API-Key` header) rather than
   per-user authentication — anyone holding that key can create, update, or
   delete any apartment/subscription/user.
+* The scraper adds randomized delays between requests and runs at most 2
+  cities concurrently, but it does not otherwise rate-limit itself — running
+  it against OLX/Otodom is subject to their terms of service, and heavy or
+  frequent scraping could get an IP blocked.
+* Scraper selectors are tied to OLX/Otodom's current markup; if either site
+  changes its layout, the corresponding fields will silently return `None`
+  until the parser fixtures (`tests/test_parser_fixtures.py`) are updated and
+  the selectors are fixed.
