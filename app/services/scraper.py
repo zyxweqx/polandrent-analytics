@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import random
 import re
 from dataclasses import dataclass
@@ -8,6 +9,8 @@ from playwright.async_api import Page, async_playwright
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 CITY_DISPLAY_NAMES = {
     "poznan": "Poznań",
@@ -36,7 +39,7 @@ def clean_price_text(raw_price: str) -> float:
         return final_price
 
 async def dismiss_popups(page) -> None:
-    print("Dismissing popups...")
+    logger.info("Dismissing popups...")
     await page.keyboard.press("Escape")
     await page.wait_for_timeout(1000)
     survey_frame = page.frame_locator("[id*='contextual-widget-host']")
@@ -44,18 +47,18 @@ async def dismiss_popups(page) -> None:
 
     try:
         await dismiss_btn.wait_for(state="visible", timeout=5000)
-        print("Survey popup detected, clicking dismiss...")
+        logger.info("Survey popup detected, clicking dismiss...")
         await dismiss_btn.click()
     except Exception:
-        print("Survey popup did not appear this time.")
+        logger.info("Survey popup did not appear this time.")
 
     accept_cookies_btn = page.get_by_role("button", name="Akceptuj wszystkie")
     try:
         if await accept_cookies_btn.is_visible():
-            print("Cookie banner detected, accepting...")
+            logger.info("Cookie banner detected, accepting...")
             await accept_cookies_btn.click()
     except Exception:
-        print("Cookie button not clickable or missing.")
+        logger.warning("Cookie button not clickable or missing.")
 
     await page.locator('[data-cy="l-card"]').first.wait_for(state="visible")
 
@@ -67,18 +70,18 @@ async def dismiss_otodom_cookies(page) -> None:
             await otodom_cookies_btn.click()
             await page.wait_for_timeout(500)
     except Exception:
-        print("Cookie button not clickable or missing.")
+        logger.warning("Cookie button not clickable or missing.")
 
 async def parse_apartments_list(page: Page, city: str) -> list[ApartmentAd]:
-    print(f"[{city.upper()}] Parsing apartments list...")
+    logger.info(f"[{city.upper()}] Parsing apartments list...")
     try:
         await page.locator('[data-cy="l-card"]').first.wait_for(state="visible")
     except Exception:
-        print(f"[{city.upper()}]Apartments list not found, end of the list or captcha")
+        logger.warning(f"[{city.upper()}]Apartments list not found, end of the list or captcha")
         return []
 
     all_cards = await page.locator('[data-cy="l-card"]').all()
-    print(f"Listings found on the page: {len(all_cards)}")
+    logger.info(f"Listings found on the page: {len(all_cards)}")
 
     results: list[ApartmentAd] = []
 
@@ -93,7 +96,7 @@ async def parse_apartments_list(page: Page, city: str) -> list[ApartmentAd]:
             raw_price = await card.locator('[data-testid="ad-price"]').first.inner_text(timeout=1000)
             final_price = clean_price_text(raw_price)
 
-            print(f"Parsed: {title_text} | Price: {final_price}")
+            logger.info(f"Parsed: {title_text} | Price: {final_price}")
 
             results.append(ApartmentAd(
                 external_id=url,
@@ -108,7 +111,7 @@ async def parse_apartments_list(page: Page, city: str) -> list[ApartmentAd]:
                 district=None
             ))
         except Exception:
-            print("Apartment not found")
+            logger.warning("Apartment not found")
 
     return results
 
@@ -124,7 +127,7 @@ async def parse_olx_details(page: Page, city: str) -> tuple[float | None, int | 
             clean_area = match.group().replace(",", ".")
             sq_meters = float(clean_area)
     except Exception as e:
-         print(f"Not found meters on this page {e}")
+         logger.warning(f"Not found meters on this page {e}")
 
     try:
         rooms_element = page.locator("p").filter(has_text="Liczba pokoi:").first
@@ -137,7 +140,7 @@ async def parse_olx_details(page: Page, city: str) -> tuple[float | None, int | 
              if match:
                   rooms = int(match.group())
     except Exception:
-        print("Not found rooms on this page")
+        logger.warning("Not found rooms on this page")
 
     try:
         floor_element = page.locator("p").filter(has_text="Poziom:").first
@@ -155,7 +158,7 @@ async def parse_olx_details(page: Page, city: str) -> tuple[float | None, int | 
             if match:
                 floor = int(match.group())
     except Exception:
-          print("Not found floors on this page")
+          logger.warning("Not found floors on this page")
 
     try:
         rent_element = page.locator("p").filter(has_text="Czynsz").first
@@ -176,7 +179,7 @@ async def parse_olx_details(page: Page, city: str) -> tuple[float | None, int | 
             if len(parts) > 1:
                 district = parts[1].strip()
     except Exception:
-        print("Not found district on this page")
+        logger.warning("Not found district on this page")
 
     return sq_meters, rooms, floor, additional_rent, district
 
@@ -192,7 +195,7 @@ async def parse_otodom_details(page: Page, city: str) -> tuple[float | None, int
         if match:
             sq_meters = float(match.group().replace(",", "."))
     except Exception as e:
-        print(f"Not found area on this page {e}")
+        logger.warning(f"Not found area on this page {e}")
 
     try:
         rooms_element = page.locator('div:has-text("Liczba pokoi") + div').first
@@ -205,7 +208,7 @@ async def parse_otodom_details(page: Page, city: str) -> tuple[float | None, int
             if match:
                 rooms = int(match.group())
     except Exception as e:
-        print(f"Not found rooms on this page {e}")
+        logger.warning(f"Not found rooms on this page {e}")
 
     try:
         floor_element = page.locator('div:has-text("Piętro") + div').first
@@ -223,7 +226,7 @@ async def parse_otodom_details(page: Page, city: str) -> tuple[float | None, int
             if match:
                 floor = int(match.group())
     except Exception as e:
-        print(f"Not found floors on this page {e}")
+        logger.warning(f"Not found floors on this page {e}")
 
     try:
         rent_element = page.locator('div:text-is("Czynsz:") + div').first
@@ -233,7 +236,7 @@ async def parse_otodom_details(page: Page, city: str) -> tuple[float | None, int
         match = re.search(r'\d+[.,]?\d*', clean_rent_text)
         if match: additional_rent = float(match.group().replace(",", "."))
     except Exception:
-        print("Not found rent on this page")
+        logger.warning("Not found rent on this page")
 
     try:
         loc_element = page.locator('a[href*="#map"]').first
@@ -245,12 +248,12 @@ async def parse_otodom_details(page: Page, city: str) -> tuple[float | None, int
             if len(parts) > 1:
                 district = parts[1].strip()
     except Exception:
-        print("Not found district on this page")
+        logger.warning("Not found district on this page")
 
     return sq_meters, rooms, floor, additional_rent, district
 
 async def get_apartment_details(page: Page, apt: ApartmentAd) -> None:
-    print(f"[{apt.city.upper()}] Entry inside: {apt.url}")
+    logger.info(f"[{apt.city.upper()}] Entry inside: {apt.url}")
     try:
         await page.goto(apt.url, wait_until="domcontentloaded")
         await page.wait_for_timeout(1500)
@@ -262,7 +265,7 @@ async def get_apartment_details(page: Page, apt: ApartmentAd) -> None:
         elif "otodom.pl" in apt.url:
             sq_meters, rooms, floor,additional_rent, district = await parse_otodom_details(page,apt.city)
 
-        print(f"[{apt.city.upper()}] -> Area: {sq_meters} m2 | Rooms: {rooms} | Floor: {floor}")
+        logger.info(f"[{apt.city.upper()}] -> Area: {sq_meters} m2 | Rooms: {rooms} | Floor: {floor}")
 
         apt.sq_meters = sq_meters
         apt.rooms = rooms
@@ -271,10 +274,10 @@ async def get_apartment_details(page: Page, apt: ApartmentAd) -> None:
         apt.district = district
 
     except Exception as e:
-        print(f"[{apt.city.upper()}] Error: {apt.url}: {e}")
+        logger.error(f"[{apt.city.upper()}] Error: {apt.url}: {e}")
 
 async def scrape_city(browser, city: str) -> list[ApartmentAd]:
-    print(f"Scraping cities: {city.capitalize()}")
+    logger.info(f"Scraping cities: {city.capitalize()}")
 
     context = await browser.new_context(
         viewport={'width': 1280, 'height': 800},
@@ -288,7 +291,7 @@ async def scrape_city(browser, city: str) -> list[ApartmentAd]:
     MAX_PAGES = 5
 
     for current_page in range(1, MAX_PAGES + 1):
-        print(f"[{city.capitalize()}] Page {current_page} of {MAX_PAGES}")
+        logger.info(f"[{city.capitalize()}] Page {current_page} of {MAX_PAGES}")
         city_url = city.lower()
 
         if current_page == 1:
@@ -342,7 +345,7 @@ async def send_apartments_to_api(apartments: list[ApartmentAd]) -> None:
             payload = {
                 "url": apt.url,
                 "title": apt.title,
-                "city": apt.city,
+                "city": CITY_DISPLAY_NAMES.get(apt.city, apt.city),
                 "district": apt.district,
                 "price": apt.price,
                 "additional_rent": apt.additional_rent,
@@ -353,18 +356,19 @@ async def send_apartments_to_api(apartments: list[ApartmentAd]) -> None:
             try:
                 response = await _post_apartment(client, payload)
                 if response.status_code == 200:
-                    print("Success!")
+                    logger.info("Success!")
                 elif response.status_code == 422:
-                    print(f"Validation error for {apt.url}: {response.text}")
+                    logger.warning(f"Validation error for {apt.url}: {response.text}")
                 elif response.status_code == 409:
-                    print(f"Already in database: {apt.url}")
+                    logger.info(f"Already in database: {apt.url}")
                 else:
-                    print("Error!")
+                    logger.error("Error!")
             except Exception as e:
-                print(f"Unexpected error:  {e}")
+                logger.error(f"Unexpected error:  {e}")
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     cities_to_scrape = ["warszawa", "krakow", "wroclaw", "poznan", "gdansk"]
     results = asyncio.run(run_all_scrapers(cities_to_scrape))
     asyncio.run(send_apartments_to_api(results))
-    print(f"\n Ready! Total count of apartments: {len(results)}")
+    logger.info(f"\n Ready! Total count of apartments: {len(results)}")
