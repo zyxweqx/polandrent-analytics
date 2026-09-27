@@ -1,7 +1,5 @@
 import asyncio
-import logging
 import os
-import sys
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
@@ -12,6 +10,7 @@ from dotenv import load_dotenv
 from app.bot.auth.middlewares import DbSessionMiddleware
 from app.bot.handlers import base, subs
 from app.core.database import async_session_maker
+from app.core.logging_config import setup_logging
 
 load_dotenv()
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -36,5 +35,5 @@ async def setup_bot_commands(bot: Bot):
     await bot.set_my_commands(commands)
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, stream=sys.stdout)
+    setup_logging()
     asyncio.run(main())

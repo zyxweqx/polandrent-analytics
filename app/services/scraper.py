@@ -9,6 +9,7 @@ from playwright.async_api import Page, async_playwright
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from app.core.config import settings
+from app.core.logging_config import setup_logging
 
 logger = logging.getLogger(__name__)
 
@@ -367,7 +368,7 @@ async def send_apartments_to_api(apartments: list[ApartmentAd]) -> None:
                 logger.error(f"Unexpected error:  {e}")
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    setup_logging()
     cities_to_scrape = ["warszawa", "krakow", "wroclaw", "poznan", "gdansk"]
     results = asyncio.run(run_all_scrapers(cities_to_scrape))
     asyncio.run(send_apartments_to_api(results))

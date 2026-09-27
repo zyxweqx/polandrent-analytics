@@ -1,11 +1,14 @@
 import asyncio
+import logging
 
 import pandas as pd
 from sqlalchemy import create_engine
 
 from app.core.config import settings
+from app.core.logging_config import setup_logging
 from app.services.notifier import send_tg_message
 
+logger = logging.getLogger(__name__)
 
 def _sync_database_url() -> str:
     return settings.DATABASE_URL.replace("+asyncpg", "+psycopg2")
@@ -20,7 +23,7 @@ def run_analytics() -> None:
     df = pd.read_sql_query("SELECT * FROM apartments", engine)
 
     if df.empty:
-        print("No apartments in the database yet, nothing to analyze.")
+        logger.info("No apartments in the database yet, nothing to analyze.")
         return
 
     df['additional_rent'] = df['additional_rent'].fillna(0)
@@ -28,17 +31,16 @@ def run_analytics() -> None:
 
     df_clean = df.dropna(subset=['district', 'sq_meters'])
     df_clean = df_clean[df_clean['sq_meters'] > 0]
-    df_clean = df_clean[df_clean['district'] != 'wielkopolskie']
     df_clean = df_clean.drop_duplicates(subset=['title'])
     df_clean = df_clean[~df_clean['title'].str.contains(r'(?i)pok[oó]j', na=False, regex=True)]
     df_clean['price_per_sqm'] = df_clean['total_price'] / df_clean['sq_meters']
 
-    print("Average price per district: ")
+    logger.info("Average price per district: ")
     stats = df_clean.groupby('district')['total_price'].mean().sort_values(ascending=False)
-    print(stats)
+    logger.info(stats)
 
     if df_clean.empty:
-        print("Nothing left after cleaning, skipping the Telegram report.")
+        logger.warning("Nothing left after cleaning, skipping the Telegram report.")
         return
 
     message_lines = ["\n- Top 5 the cheapest apartments per m² -"]
@@ -53,16 +55,17 @@ def run_analytics() -> None:
             f"{'—' * 20}"
         )
         message_lines.append(apt_block)
-        print(f"Ready: {row['title']}")
+        logger.info(f"Ready: {row['title']}")
 
     final_text = "\n".join(message_lines)
 
     if not settings.TELEGRAM_CHAT_ID:
-        print("TELEGRAM_CHAT_ID is not set, skipping Telegram report.")
+        logger.warning("TELEGRAM_CHAT_ID is not set, skipping Telegram report.")
         return
 
     asyncio.run(send_tg_message(settings.TELEGRAM_CHAT_ID, final_text))
 
 
 if __name__ == '__main__':
+    setup_logging()
     run_analytics()

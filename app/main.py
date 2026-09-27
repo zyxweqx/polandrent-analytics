@@ -6,7 +6,9 @@ from app.api.apartments import router as apartments_router
 from app.api.subscriptions import router as subscriptions_router
 from app.api.user import router as user_router
 from app.core.database import get_db
+from app.core.logging_config import setup_logging
 
+setup_logging()
 app = FastAPI(
     title="PolandRent Analytics"
 )

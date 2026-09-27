@@ -2,6 +2,7 @@ import asyncio
 
 import typer
 
+from app.core.logging_config import setup_logging
 from app.services.analytics import run_analytics
 from app.services.scraper import run_all_scrapers, send_apartments_to_api
 
@@ -23,4 +24,5 @@ def analytics():
     run_analytics()
 
 if __name__ == "__main__":
+    setup_logging()
     app()
