@@ -30,7 +30,8 @@ async def find_matches(session,apartment):
     result = await session.execute(stmt)
     return result.scalars().all()
 
-async def notify_matched_users(session, matches, apartment):
+async def build_notifications(session, matches, apartment):
+    notifications = []
     user_ids = [subscription.user_id for subscription in matches]
     user_query = select(User).where(User.id.in_(user_ids))
     user_result = await session.execute(user_query)
@@ -45,6 +46,9 @@ async def notify_matched_users(session, matches, apartment):
             f"💰 Price: {apartment.price:.0f} zł\n"
             f"🔗 <a href='{apartment.url}'>Open listing</a>"
         )
-        await send_tg_message(user.telegram_id, text)
+        notifications.append((user.telegram_id, text))
+    return notifications
 
-
+async def send_notifications(notifications):
+    for telegram_id, text in notifications:
+        await send_tg_message(telegram_id, text)

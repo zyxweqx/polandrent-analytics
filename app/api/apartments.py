@@ -11,7 +11,7 @@ from app.schemas.apartments import (
     ApartmentsResponse,
     ApartmentsUpdate,
 )
-from app.services.matching import find_matches, notify_matched_users
+from app.services.matching import build_notifications, find_matches, send_notifications
 
 router = APIRouter(prefix="/apartments", tags=["apartments"],dependencies=[Depends(verify_api_key)])
 
@@ -43,9 +43,9 @@ async def create_apartment(aps_data: ApartmentsCreate, background_tasks: Backgro
     except IntegrityError:
         await db.rollback()
         raise HTTPException(status_code=409, detail="Apartment already exists")
-    matches = await find_matches(db,new_ap)
-    background_tasks.add_task(notify_matched_users, db, matches,new_ap, )
-
+    matches = await find_matches(db, new_ap)
+    notifications = await build_notifications(db,matches,new_ap)
+    background_tasks.add_task(send_notifications, notifications)
     return new_ap
 
 @router.patch("/{aps_id}", response_model=ApartmentsResponse)
