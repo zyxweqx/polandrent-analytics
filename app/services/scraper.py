@@ -169,7 +169,7 @@ async def parse_olx_details(page: Page, city: str) -> tuple[float | None, int | 
         match = re.search(r'\d+[.,]?\d*', clean_rent_text)
         if match: additional_rent = float(match.group().replace(",", "."))
     except Exception:
-        print ("Not found rent on this page")
+        logger.warning("Not found rent on this page")
 
     try:
         loc_element = page.locator("p").filter(has_text=CITY_DISPLAY_NAMES[city]).first
