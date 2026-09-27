@@ -1,8 +1,12 @@
+import logging
+
 from sqlalchemy import or_, select
 
 from app.models.subscriptions import Subscription
 from app.models.users import User
 from app.services.notifier import send_tg_message
+
+logger = logging.getLogger(__name__)
 
 
 async def find_matches(session,apartment):
@@ -51,4 +55,7 @@ async def build_notifications(session, matches, apartment):
 
 async def send_notifications(notifications):
     for telegram_id, text in notifications:
-        await send_tg_message(telegram_id, text)
+        try:
+            await send_tg_message(telegram_id, text)
+        except Exception:
+            logger.exception("Failed to notify user %s", telegram_id)
